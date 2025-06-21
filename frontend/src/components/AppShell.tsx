@@ -1,4 +1,6 @@
-import React from "react";
+import { Button } from "@mui/material";
+import React, { useState } from "react";
+import ImportFromDriveDialog from "./ImportFromDriveDialog";
 
 export interface AppShellProps {
   pizza?: string;
@@ -8,34 +10,22 @@ const AppShell = (props: AppShellProps) => {
 
   const { pizza } = props;
 
-  const [selectedFiles, setSelectedFiles] = React.useState<FileList | null>(null);
+  const [showImportMarkdownDialog, setShowImportMarkdownDialog] = useState(false);
 
-  const handleImportFilesSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      setSelectedFiles(event.target.files);
-    }
-  };
 
-  const handleImport = async () => {
-    console.log('handleImport: ', selectedFiles);
-    if (selectedFiles && (selectedFiles.length > 0)) {
-      // await handleImportFromDrive(baseDirectory, albumNodeId, selectedFiles);
-    }
-
-  };
+  function handleCloseMarkdownDialog(): void {
+    throw new Error("Function not implemented.");
+  }
 
   return (
     <div>
-      <h1>App Shell</h1>
-      {pizza && <p>Pizza: {pizza}</p>}
-      {/* Other components and logic can be added here */}
-      <input
-        type="file"
-        accept=".md"
-        onChange={handleImportFilesSelect}
-        id="importFilesInput"
-        name="file"
-        style={{ marginTop: '1rem' }}
+      <h1>Chatsworth</h1>
+      <Button onClick={() => setShowImportMarkdownDialog(true)}>
+        Import Markdown
+      </Button>
+      <ImportFromDriveDialog
+        open={showImportMarkdownDialog}
+        onClose={handleCloseMarkdownDialog}
       />
     </div>
   );
