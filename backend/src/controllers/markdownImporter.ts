@@ -2,8 +2,7 @@
 import { Request, Response } from 'express';
 import path from 'path';
 import multer from 'multer';
-import * as fs from 'fs';
-import markdownit from 'markdown-it';
+import { parseChatMarkdown } from '../utilities';
 
 export const markdownImporterEndpoint = async (request: Request, response: Response, next: any) => {
 
@@ -30,24 +29,15 @@ export const markdownImporterEndpoint = async (request: Request, response: Respo
       console.log('no error on upload');
       console.log(request.files.length);
 
-      const uploadedStatementFiles: Express.Multer.File[] = (request as any).files;
-      for (const uploadedStatementFile of uploadedStatementFiles) {
-        const originalFileName: string = uploadedStatementFile.originalname;
-        const filePath: string = uploadedStatementFile.path;
-        const content: string = fs.readFileSync(filePath).toString();
-
-        const md = markdownit()
-        const result = md.render(content);
-        console.log('Markdown content rendered: ', result);
-
-
+      const uploadedMarkdownFiles: Express.Multer.File[] = (request as any).files;
+      if (uploadedMarkdownFiles.length === 1) {
+        for (const uploadedMarkdownFile of uploadedMarkdownFiles) {
+          const filePath: string = uploadedMarkdownFile.path;
+          const parsedChat = parseChatMarkdown(filePath);
+          console.log('Parsed Chat: ', parsedChat);
+          return response.status(200).json(parsedChat);
+        }
       }
-
-      const responseData = {
-        uploadStatus: 'success',
-      };
-      return response.status(200).send(responseData);
     }
   });
-
 }
