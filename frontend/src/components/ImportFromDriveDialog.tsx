@@ -7,6 +7,7 @@ import Dialog from '@mui/material/Dialog';
 import { Button, DialogActions, DialogContent, Alert } from '@mui/material';
 import { getServerUrl, apiUrlFragment, FileToImport } from '../types';
 import axios from 'axios';
+import { uploadFile } from '../controllers';
 
 
 export interface ImportFromDriveDialogPropsFromParent {
@@ -15,6 +16,7 @@ export interface ImportFromDriveDialogPropsFromParent {
 }
 
 export interface ImportFromDriveDialogProps extends ImportFromDriveDialogPropsFromParent {
+  onUploadFile: (data: FormData) => any;
 }
 
 const ImportFromDriveDialog = (props: ImportFromDriveDialogProps) => {
@@ -40,40 +42,58 @@ const ImportFromDriveDialog = (props: ImportFromDriveDialogProps) => {
   };
 
   const handleImport = async () => {
-    console.log('handleImport: ', selectedFiles);
-    if (selectedFiles && (selectedFiles.length > 0)) {
-      // await handleImportFromDrive(baseDirectory, albumNodeId, selectedFiles);
 
-      const uploadUrl = getServerUrl() + apiUrlFragment + 'importMarkdown';
-      const files: FileToImport[] = [];
-      for (const key in selectedFiles) {
-        if (Object.prototype.hasOwnProperty.call(selectedFiles, key)) {
-          const selectedFile: File = selectedFiles[key];
-          const file: FileToImport = {
-            name: selectedFile.name,
-            size: selectedFile.size,
-            type: selectedFile.type,
-            lastModified: selectedFile.lastModified,
-            lastModifiedDate: (selectedFile as any).lastModifiedDate,
-          };
-          files.push(file);
-        }
-      }
+    console.log('selectedFiles:', selectedFiles);
 
-      const uploadBody = {
-        files,
-      };
+    if (!selectedFiles) return;
 
-      try {
-        const response = await axios.post(uploadUrl, uploadBody);
+    const formData = new FormData();
+    Array.from(selectedFiles).forEach(file => {
+      formData.append('files', file);
+    });
 
-        console.log("Upload started:", response.data);
-        console.log("Processing is fully complete!");
+    props.onUploadFile(formData)
+      .then((response: any) => {
+        console.log('success');
+      }).catch((err: any) => {
+        console.log('uploadFile returned error');
+        console.log(err);
+      });
 
-      } catch (error) {
-        console.error("Upload failed", error);
-      }
-    }
+    // console.log('handleImport: ', selectedFiles);
+    // if (selectedFiles && (selectedFiles.length > 0)) {
+    //   // await handleImportFromDrive(baseDirectory, albumNodeId, selectedFiles);
+
+    //   const uploadUrl = getServerUrl() + apiUrlFragment + 'importMarkdown';
+    //   const files: FileToImport[] = [];
+    //   for (const key in selectedFiles) {
+    //     if (Object.prototype.hasOwnProperty.call(selectedFiles, key)) {
+    //       const selectedFile: File = selectedFiles[key];
+    //       const file: FileToImport = {
+    //         name: selectedFile.name,
+    //         size: selectedFile.size,
+    //         type: selectedFile.type,
+    //         lastModified: selectedFile.lastModified,
+    //         lastModifiedDate: (selectedFile as any).lastModifiedDate,
+    //       };
+    //       files.push(file);
+    //     }
+    //   }
+
+    //   const uploadBody = {
+    //     files,
+    //   };
+
+    //   try {
+    //     const response = await axios.post(uploadUrl, uploadBody);
+
+    //     console.log("Upload started:", response.data);
+    //     console.log("Processing is fully complete!");
+
+    //   } catch (error) {
+    //     console.error("Upload failed", error);
+    //   }
+    // }
   };
 
   return (
@@ -81,18 +101,12 @@ const ImportFromDriveDialog = (props: ImportFromDriveDialogProps) => {
       <Dialog onClose={handleClose} open={props.open} maxWidth="md" fullWidth>
         <DialogTitle>Import Markdown</DialogTitle>
         <DialogContent style={{ paddingTop: '6px', paddingBottom: '0px' }} sx={{ width: '100%', minWidth: '500px' }}>
-          {processingComplete && (
-            <Alert severity="success" sx={{ mb: 2, fontSize: '1.2rem', textAlign: 'center' }}>
-              Processing Complete!
-            </Alert>
-          )}
           <input
             type="file"
             accept=".md"
             onChange={handleImportFilesSelect}
             id="importFilesInput"
             name="file"
-            multiple
             style={{ marginTop: '1rem' }}
           />
         </DialogContent>
@@ -128,6 +142,7 @@ function mapStateToProps(state: any) {
 
 const mapDispatchToProps = (dispatch: any) => {
   return bindActionCreators({
+    onUploadFile: uploadFile,
   }, dispatch);
 };
 
