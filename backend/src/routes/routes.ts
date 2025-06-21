@@ -7,7 +7,7 @@ import {
 export const createRoutes = (app: express.Application) => {
   app.get('/api/v1/version', getVersion);
 
-    app.post('/api/v1/importPhotos', markdownImporterEndpoint);
+  app.post('/api/v1/importMarkdown', markdownImporterEndpoint);
 
 };
 

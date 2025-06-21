@@ -5,6 +5,8 @@ import { bindActionCreators } from 'redux';
 import DialogTitle from '@mui/material/DialogTitle';
 import Dialog from '@mui/material/Dialog';
 import { Button, DialogActions, DialogContent, Alert } from '@mui/material';
+import { getServerUrl, apiUrlFragment, FileToImport } from '../types';
+import axios from 'axios';
 
 
 export interface ImportFromDriveDialogPropsFromParent {
@@ -41,6 +43,36 @@ const ImportFromDriveDialog = (props: ImportFromDriveDialogProps) => {
     console.log('handleImport: ', selectedFiles);
     if (selectedFiles && (selectedFiles.length > 0)) {
       // await handleImportFromDrive(baseDirectory, albumNodeId, selectedFiles);
+
+      const uploadUrl = getServerUrl() + apiUrlFragment + 'importMarkdown';
+      const files: FileToImport[] = [];
+      for (const key in selectedFiles) {
+        if (Object.prototype.hasOwnProperty.call(selectedFiles, key)) {
+          const selectedFile: File = selectedFiles[key];
+          const file: FileToImport = {
+            name: selectedFile.name,
+            size: selectedFile.size,
+            type: selectedFile.type,
+            lastModified: selectedFile.lastModified,
+            lastModifiedDate: (selectedFile as any).lastModifiedDate,
+          };
+          files.push(file);
+        }
+      }
+
+      const uploadBody = {
+        files,
+      };
+
+      try {
+        const response = await axios.post(uploadUrl, uploadBody);
+
+        console.log("Upload started:", response.data);
+        console.log("Processing is fully complete!");
+
+      } catch (error) {
+        console.error("Upload failed", error);
+      }
     }
   };
 
