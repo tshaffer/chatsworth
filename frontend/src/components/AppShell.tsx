@@ -14,7 +14,7 @@ const AppShell = (props: AppShellProps) => {
 
 
   function handleCloseMarkdownDialog(): void {
-    throw new Error("Function not implemented.");
+    setShowImportMarkdownDialog(false);
   }
 
   return (
