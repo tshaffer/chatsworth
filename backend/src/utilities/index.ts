@@ -1,1 +1,1 @@
-export * from './markdownUtilities';
+export * from './parseChatMarkdown';

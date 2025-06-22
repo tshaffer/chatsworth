@@ -2,7 +2,8 @@
 import { Request, Response } from 'express';
 import path from 'path';
 import multer from 'multer';
-import { parseChatMarkdown } from '../utilities';
+import * as fs from 'fs';
+import { extractChatEntries } from '../utilities';
 
 export const markdownImporterEndpoint = async (request: Request, response: Response, next: any) => {
 
@@ -33,7 +34,8 @@ export const markdownImporterEndpoint = async (request: Request, response: Respo
       if (uploadedMarkdownFiles.length === 1) {
         for (const uploadedMarkdownFile of uploadedMarkdownFiles) {
           const filePath: string = uploadedMarkdownFile.path;
-          const parsedChat = parseChatMarkdown(filePath);
+          const content: string = fs.readFileSync(filePath).toString();
+          const parsedChat = extractChatEntries(content);
           console.log('Parsed Chat: ', parsedChat);
           return response.status(200).json(parsedChat);
         }
