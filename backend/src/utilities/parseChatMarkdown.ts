@@ -34,8 +34,8 @@ export function extractChatEntries(markdownText: string): ChatEntry[] {
       console.log('hr tag detected')
     }
     if (token.type === 'heading_open' && token.tag === 'h2') {
-      collecting = null;
-      outputFinalResponse(currentResponse);
+      // collecting = null;
+      // outputFinalResponse(currentResponse);
     } else if (token.type === 'inline') {
       const content = token.content.trim();
       if (content.toLowerCase().startsWith('prompt:')) {
@@ -55,9 +55,6 @@ export function extractChatEntries(markdownText: string): ChatEntry[] {
           if (content.includes('into your mocked import logic')) {
             console.log('Failure next');
           }
-          // if (content.startsWith('hello')) {
-          //   console.log('foo');
-          // }
           currentResponse += content + '\n';
         }
       }
