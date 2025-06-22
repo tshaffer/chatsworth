@@ -5,3 +5,8 @@ export interface FileToImport {
   lastModified: number;
   lastModifiedDate: string;
 }
+
+export interface ChatEntry {
+  prompt: string;
+  response: string;
+}

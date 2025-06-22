@@ -1,9 +1,5 @@
+import { ChatEntry } from 'base';
 import MarkdownIt from 'markdown-it';
-
-export interface ChatEntry {
-  prompt: string;
-  response: string;
-}
 
 let lastCurrentResponse: string | null = null;
 

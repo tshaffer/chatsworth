@@ -12,3 +12,7 @@ export interface FileToImport {
   lastModifiedDate: string;
 }
 
+export interface ChatEntry {
+  prompt: string;
+  response: string;
+}

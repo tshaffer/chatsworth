@@ -5,7 +5,7 @@ import { bindActionCreators } from 'redux';
 import DialogTitle from '@mui/material/DialogTitle';
 import Dialog from '@mui/material/Dialog';
 import { Button, DialogActions, DialogContent, Alert } from '@mui/material';
-import { getServerUrl, apiUrlFragment, FileToImport } from '../types';
+import { ChatEntry, getServerUrl, apiUrlFragment, FileToImport } from '../types';
 import axios from 'axios';
 import { uploadFile } from '../controllers';
 
@@ -55,6 +55,10 @@ const ImportFromDriveDialog = (props: ImportFromDriveDialogProps) => {
     props.onUploadFile(formData)
       .then((response: any) => {
         console.log('success');
+        console.log(response);
+        console.log(response.data);
+        const chatEntries: ChatEntry[] = response.data;
+        debugger;
       }).catch((err: any) => {
         console.log('uploadFile returned error');
         console.log(err);
