@@ -5,12 +5,19 @@ export interface ChatEntry {
   response: string;
 }
 
+let lastCurrentResponse: string | null = null;
+
 function outputFinalResponse(currentResponse: string | null): void {
   if (!currentResponse || currentResponse.trim() === '') {
     return;
   }
-  console.log('Final response:');
-  console.log(currentResponse);
+  if (lastCurrentResponse === currentResponse) {
+    // console.log('No change in response, skipping output.');
+    return;
+  }
+  lastCurrentResponse = currentResponse;
+  console.log('Output final response:');
+  // console.log(currentResponse);
 }
 
 export function extractChatEntries(markdownText: string): ChatEntry[] {
@@ -23,6 +30,9 @@ export function extractChatEntries(markdownText: string): ChatEntry[] {
   let collecting: 'prompt' | 'response' | null = null;
 
   for (const token of tokens) {
+    if (token.tag === 'hr') {
+      console.log('hr tag detected')
+    }
     if (token.type === 'heading_open' && token.tag === 'h2') {
       collecting = null;
       outputFinalResponse(currentResponse);
@@ -42,6 +52,12 @@ export function extractChatEntries(markdownText: string): ChatEntry[] {
       } else {
         if (collecting === 'prompt') currentPrompt += content + '\n';
         if (collecting === 'response') {
+          if (content.includes('into your mocked import logic')) {
+            console.log('Failure next');
+          }
+          // if (content.startsWith('hello')) {
+          //   console.log('foo');
+          // }
           currentResponse += content + '\n';
         }
       }
