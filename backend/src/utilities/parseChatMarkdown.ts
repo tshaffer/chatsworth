@@ -67,3 +67,55 @@ export function extractChatEntries(markdownText: string): ChatEntry[] {
 
   return entries;
 }
+
+export function extractChatEntriesPreservingMarkdown(markdownText: string): ChatEntry[] {
+  const md = new MarkdownIt();
+  const tokens = md.parse(markdownText, {});
+  const entries: ChatEntry[] = [];
+
+  let currentPrompt: string | null = null;
+  let currentResponse: string | null = null;
+  let collecting: 'prompt' | 'response' | null = null;
+
+  // Collect original markdown lines
+  const lines = markdownText.split('\n');
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i].trim();
+
+    if (/^prompt:/i.test(line)) {
+      // Save previous entry if valid
+      if (currentPrompt !== null && currentResponse !== null) {
+        entries.push({ prompt: currentPrompt.trim(), response: currentResponse.trim() });
+      }
+      currentPrompt = '';
+      currentResponse = null;
+      collecting = 'prompt';
+      i++; // Skip current "Prompt:" line
+      continue;
+    }
+
+    if (/^response:/i.test(line)) {
+      currentResponse = '';
+      collecting = 'response';
+      i++; // Skip current "Response:" line
+      continue;
+    }
+
+    if (collecting === 'prompt') {
+      currentPrompt += lines[i] + '\n';
+    } else if (collecting === 'response') {
+      currentResponse += lines[i] + '\n';
+    }
+
+    i++;
+  }
+
+  // Final entry
+  if (currentPrompt !== null && currentResponse !== null) {
+    entries.push({ prompt: currentPrompt.trim(), response: currentResponse.trim() });
+  }
+
+  return entries;
+}
