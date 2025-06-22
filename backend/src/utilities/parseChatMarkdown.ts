@@ -84,7 +84,7 @@ export function extractChatEntriesPreservingMarkdown(markdownText: string): Chat
   while (i < lines.length) {
     const line = lines[i].trim();
 
-    if (/^prompt:/i.test(line)) {
+    if (/^##\s*prompt:/i.test(line)) {
       // Save previous entry if valid
       if (currentPrompt !== null && currentResponse !== null) {
         entries.push({ prompt: currentPrompt.trim(), response: currentResponse.trim() });
@@ -96,7 +96,7 @@ export function extractChatEntriesPreservingMarkdown(markdownText: string): Chat
       continue;
     }
 
-    if (/^response:/i.test(line)) {
+    if (/^##\s*response:/i.test(line)) {
       currentResponse = '';
       collecting = 'response';
       i++; // Skip current "Response:" line
