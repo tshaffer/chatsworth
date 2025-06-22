@@ -12,6 +12,7 @@ import { uploadFile } from '../controllers';
 
 export interface ImportFromDriveDialogPropsFromParent {
   open: boolean;
+  onSetChatEntries: (chatEntries: ChatEntry[]) => void;
   onClose: () => void;
 }
 
@@ -58,46 +59,12 @@ const ImportFromDriveDialog = (props: ImportFromDriveDialogProps) => {
         console.log(response);
         console.log(response.data);
         const chatEntries: ChatEntry[] = response.data;
-        debugger;
+        props.onSetChatEntries(chatEntries);
+        handleClose();
       }).catch((err: any) => {
         console.log('uploadFile returned error');
         console.log(err);
       });
-
-    // console.log('handleImport: ', selectedFiles);
-    // if (selectedFiles && (selectedFiles.length > 0)) {
-    //   // await handleImportFromDrive(baseDirectory, albumNodeId, selectedFiles);
-
-    //   const uploadUrl = getServerUrl() + apiUrlFragment + 'importMarkdown';
-    //   const files: FileToImport[] = [];
-    //   for (const key in selectedFiles) {
-    //     if (Object.prototype.hasOwnProperty.call(selectedFiles, key)) {
-    //       const selectedFile: File = selectedFiles[key];
-    //       const file: FileToImport = {
-    //         name: selectedFile.name,
-    //         size: selectedFile.size,
-    //         type: selectedFile.type,
-    //         lastModified: selectedFile.lastModified,
-    //         lastModifiedDate: (selectedFile as any).lastModifiedDate,
-    //       };
-    //       files.push(file);
-    //     }
-    //   }
-
-    //   const uploadBody = {
-    //     files,
-    //   };
-
-    //   try {
-    //     const response = await axios.post(uploadUrl, uploadBody);
-
-    //     console.log("Upload started:", response.data);
-    //     console.log("Processing is fully complete!");
-
-    //   } catch (error) {
-    //     console.error("Upload failed", error);
-    //   }
-    // }
   };
 
   return (
