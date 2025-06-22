@@ -35,9 +35,12 @@ export const markdownImporterEndpoint = async (request: Request, response: Respo
         for (const uploadedMarkdownFile of uploadedMarkdownFiles) {
           const filePath: string = uploadedMarkdownFile.path;
           const content: string = fs.readFileSync(filePath).toString();
-          const parsedChat = extractChatEntries(content);
-          console.log('Parsed Chat: ', parsedChat);
-          return response.status(200).json(parsedChat);
+          // const parsedChat = extractChatEntries(content);
+          // console.log('Parsed Chat: ', parsedChat);
+          // return response.status(200).json(parsedChat);
+          const plainText = await extractChatEntries(content);
+          console.log('Plain Text: ', plainText);
+          return response.status(200).json(plainText);
         }
       }
     }

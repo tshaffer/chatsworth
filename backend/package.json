@@ -12,6 +12,9 @@
     "markdown-it": "^14.1.0",
     "mongoose": "^5.13.22",
     "multer": "^1.4.5-lts.1",
+    "remark-frontmatter": "^5.0.0",
+    "remark-parse": "^11.0.0",
+    "unified": "^11.0.5",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
