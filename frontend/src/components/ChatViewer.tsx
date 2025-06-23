@@ -59,7 +59,16 @@ const ChatViewer = ({ parsedMarkdown }: ChatViewerProps) => {
                           <ListItemButton onClick={() => toggleResponse(chat.id, index)}>
                             <ListItemText
                               primary={
-                                <ReactMarkdown>{entry.prompt}</ReactMarkdown>
+                                <>
+                                  <Typography
+                                    variant="caption"
+                                    color="textSecondary"
+                                    gutterBottom
+                                  >
+                                    Prompt:
+                                  </Typography>
+                                  <ReactMarkdown>{entry.prompt}</ReactMarkdown>
+                                </>
                               }
                             />
                             {expanded ? <ExpandLess /> : <ExpandMore />}
