@@ -74,9 +74,3 @@ export function extractMarkdownMetadata(markdownText: string): MarkdownMetadata 
     exported: exportedLine.replace(/\*\*exported:\*\*\s*/i, ''),
   };
 }
-
-export function parseMarkdown(markdownText: string): ParsedMarkdown {
-  const chatEntries = extractChatEntriesPreservingMarkdown(markdownText);
-  const metadata = extractMarkdownMetadata(markdownText);
-  return { chatEntries, metadata };
-}
