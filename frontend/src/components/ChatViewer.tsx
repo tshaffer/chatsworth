@@ -9,6 +9,7 @@ import {
   ListItemText,
   Collapse,
   Paper,
+  Box,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLess from '@mui/icons-material/ExpandLess';
@@ -47,7 +48,12 @@ const ChatViewer = ({ parsedMarkdown }: ChatViewerProps) => {
             {project.chats.map((chat: Chat) => (
               <Accordion key={chat.id} sx={{ ml: 2, mb: 1 }}>
                 <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                  <Typography variant="subtitle1">{chat.title}</Typography>
+                  <Box>
+                    <Typography variant="caption" color="textSecondary">
+                      Chat:
+                    </Typography>
+                    <Typography variant="subtitle1">{chat.title}</Typography>
+                  </Box>
                 </AccordionSummary>
                 <AccordionDetails>
                   <List disablePadding>
