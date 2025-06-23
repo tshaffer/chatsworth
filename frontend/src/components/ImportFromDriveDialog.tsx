@@ -23,7 +23,6 @@ const ImportFromDriveDialog = (props: ImportFromDriveDialogProps) => {
 
   const [selectedFiles, setSelectedFiles] = React.useState<FileList | null>(null);
 
-  const [processingComplete, setProcessingComplete] = React.useState<boolean>(false);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
   React.useEffect(() => {

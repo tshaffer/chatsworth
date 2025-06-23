@@ -1,17 +1,16 @@
 import { Button } from "@mui/material";
-import React, { useState } from "react";
+import { useState } from "react";
+import { useDispatch } from 'react-redux';
+
+import { ParsedMarkdown } from "../types";
 import ImportFromDriveDialog from "./ImportFromDriveDialog";
 import ChatViewer from "./ChatViewer";
-import { Project, ParsedMarkdown } from "../types"; // also update import
 
-import { useDispatch } from 'react-redux';
 import { setParsedMarkdown } from '../redux/parsedMarkdownSlice';
 
 const AppShell = () => {
 
   const dispatch = useDispatch();
-
-  // const [parsedMarkdown, onSetParsedMarkdown] = useState<ParsedMarkdown>({ projects: [] });
 
   const [showImportMarkdownDialog, setShowImportMarkdownDialog] = useState(false);
 

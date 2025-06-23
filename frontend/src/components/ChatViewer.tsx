@@ -20,12 +20,8 @@ import { RootState } from '../redux/store';
 
 import { ParsedMarkdown, Project, Chat, ChatEntry } from '../types';
 
-// export interface ChatViewerProps {
-//   parsedMarkdown: ParsedMarkdown;
-// }
-
 const ChatViewer = () => {
-  const parsedMarkdown = useSelector((state: RootState) => state.parsedMarkdown.parsedMarkdown);
+  const parsedMarkdown: ParsedMarkdown = useSelector((state: RootState) => state.parsedMarkdown.parsedMarkdown);
   const [expandedResponses, setExpandedResponses] = useState<Record<string, boolean>>({});
 
   const toggleResponse = (chatId: string, index: number) => {
