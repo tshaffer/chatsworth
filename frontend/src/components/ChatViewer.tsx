@@ -1,6 +1,16 @@
 import React from 'react';
+import {
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Typography,
+  Paper,
+  Box,
+} from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ReactMarkdown from 'react-markdown';
-import { ParsedMarkdown, Project, Chat, ChatEntry } from '../types';
+
+import { ParsedMarkdown, Project, ChatEntry, Chat } from '../types';
 
 export interface ChatViewerProps {
   parsedMarkdown: ParsedMarkdown;
@@ -13,24 +23,39 @@ const ChatViewer = ({ parsedMarkdown }: ChatViewerProps) => {
 
   return (
     <div>
-      <h1>Projects</h1>
       {parsedMarkdown.projects.map((project: Project) => (
-        <div key={project.id} style={{ marginBottom: '2rem' }}>
-          <h2>Project: {project.name}</h2>
-          {project.chats.map((chat: Chat) => (
-            <div key={chat.id} style={{ marginLeft: '1rem', marginBottom: '1.5rem' }}>
-              <h3>Chat: {chat.title}</h3>
-              {chat.entries.map((entry: ChatEntry, index: number) => (
-                <div key={index} style={{ marginLeft: '1rem', marginBottom: '1em' }}>
-                  <strong>Prompt:</strong>
-                  <ReactMarkdown>{entry.prompt}</ReactMarkdown>
-                  <strong>Response:</strong>
-                  <ReactMarkdown>{entry.response}</ReactMarkdown>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
+        <Accordion key={project.id} defaultExpanded>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography variant="h6">Project: {project.name}</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            {project.chats.map((chat: Chat) => (
+              <Accordion key={chat.id} sx={{ ml: 2, mb: 1 }}>
+                <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                  <Typography variant="subtitle1">{chat.title}</Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                  {chat.entries.map((entry: ChatEntry, index: number) => (
+                    <Box key={index} sx={{ mb: 2 }}>
+                      <Paper variant="outlined" sx={{ p: 2, backgroundColor: '#f5f5f5', mb: 1 }}>
+                        <Typography variant="caption" color="textSecondary">
+                          Prompt:
+                        </Typography>
+                        <ReactMarkdown>{entry.prompt}</ReactMarkdown>
+                      </Paper>
+                      <Paper variant="outlined" sx={{ p: 2, backgroundColor: '#e8f0fe' }}>
+                        <Typography variant="caption" color="textSecondary">
+                          Response:
+                        </Typography>
+                        <ReactMarkdown>{entry.response}</ReactMarkdown>
+                      </Paper>
+                    </Box>
+                  ))}
+                </AccordionDetails>
+              </Accordion>
+            ))}
+          </AccordionDetails>
+        </Accordion>
       ))}
     </div>
   );
