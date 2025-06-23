@@ -5,8 +5,7 @@ import { bindActionCreators } from 'redux';
 import DialogTitle from '@mui/material/DialogTitle';
 import Dialog from '@mui/material/Dialog';
 import { Button, DialogActions, DialogContent, Alert } from '@mui/material';
-import { ChatEntry, getServerUrl, apiUrlFragment, FileToImport, ParsedMarkdown } from '../types';
-import axios from 'axios';
+import { ParsedMarkdown } from '../types';
 import { uploadFile } from '../controllers';
 
 

@@ -1,21 +1,14 @@
 import { Button } from "@mui/material";
 import React, { useState } from "react";
 import ImportFromDriveDialog from "./ImportFromDriveDialog";
-import { ChatEntry, ParsedMarkdown } from "../types";
 import ChatViewer from "./ChatViewer";
+import { Project, ParsedMarkdown } from "../types"; // also update import
 
-export interface AppShellProps {
-  pizza?: string;
-}
+const AppShell = () => {
 
-const AppShell = (props: AppShellProps) => {
-
-  const { pizza } = props;
-
-  const [parsedMarkdown, onSetParsedMarkdown] = useState<ParsedMarkdown>({ chatEntries: [], metadata: null });
+  const [parsedMarkdown, onSetParsedMarkdown] = useState<ParsedMarkdown>({ projects: [] });
 
   const [showImportMarkdownDialog, setShowImportMarkdownDialog] = useState(false);
-
 
   const handleSetParsedMarkdown = (parsedMarkdown: ParsedMarkdown) => {
     console.log("ParsedMarkdown set:", parsedMarkdown);
