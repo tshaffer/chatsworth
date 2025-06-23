@@ -3,7 +3,7 @@ import { Request, Response } from 'express';
 import path from 'path';
 import multer from 'multer';
 import * as fs from 'fs';
-import { extractChatEntries, extractChatEntriesPreservingMarkdown, parseMarkdown } from '../utilities';
+import { parseMarkdown } from '../utilities';
 import { ParsedMarkdown } from '../types';
 
 export const markdownImporterEndpoint = async (request: Request, response: Response, next: any) => {
