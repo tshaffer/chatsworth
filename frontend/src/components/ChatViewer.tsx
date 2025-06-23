@@ -1,22 +1,37 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
   Typography,
+  List,
+  ListItemButton,
+  ListItemText,
+  Collapse,
   Paper,
-  Box,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLess from '@mui/icons-material/ExpandLess';
+import ExpandMore from '@mui/icons-material/ExpandMore';
 import ReactMarkdown from 'react-markdown';
 
-import { ParsedMarkdown, Project, ChatEntry, Chat } from '../types';
+import { ParsedMarkdown, Project, Chat, ChatEntry } from '../types';
 
 export interface ChatViewerProps {
   parsedMarkdown: ParsedMarkdown;
 }
 
 const ChatViewer = ({ parsedMarkdown }: ChatViewerProps) => {
+  const [expandedResponses, setExpandedResponses] = useState<Record<string, boolean>>({});
+
+  const toggleResponse = (chatId: string, index: number) => {
+    const key = `${chatId}-${index}`;
+    setExpandedResponses((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
   if (!parsedMarkdown.projects || parsedMarkdown.projects.length === 0) {
     return <div>No chat data loaded.</div>;
   }
@@ -35,22 +50,46 @@ const ChatViewer = ({ parsedMarkdown }: ChatViewerProps) => {
                   <Typography variant="subtitle1">{chat.title}</Typography>
                 </AccordionSummary>
                 <AccordionDetails>
-                  {chat.entries.map((entry: ChatEntry, index: number) => (
-                    <Box key={index} sx={{ mb: 2 }}>
-                      <Paper variant="outlined" sx={{ p: 2, backgroundColor: '#f5f5f5', mb: 1 }}>
-                        <Typography variant="caption" color="textSecondary">
-                          Prompt:
-                        </Typography>
-                        <ReactMarkdown>{entry.prompt}</ReactMarkdown>
-                      </Paper>
-                      <Paper variant="outlined" sx={{ p: 2, backgroundColor: '#e8f0fe' }}>
-                        <Typography variant="caption" color="textSecondary">
-                          Response:
-                        </Typography>
-                        <ReactMarkdown>{entry.response}</ReactMarkdown>
-                      </Paper>
-                    </Box>
-                  ))}
+                  <List disablePadding>
+                    {chat.entries.map((entry: ChatEntry, index: number) => {
+                      const key = `${chat.id}-${index}`;
+                      const expanded = expandedResponses[key] || false;
+                      return (
+                        <React.Fragment key={key}>
+                          <ListItemButton onClick={() => toggleResponse(chat.id, index)}>
+                            <ListItemText
+                              primary={
+                                <ReactMarkdown>{entry.prompt}</ReactMarkdown>
+                              }
+                            />
+                            {expanded ? <ExpandLess /> : <ExpandMore />}
+                          </ListItemButton>
+                          <Collapse in={expanded} timeout="auto" unmountOnExit>
+                            <Paper
+                              variant="outlined"
+                              sx={{
+                                ml: 4,
+                                mr: 2,
+                                mt: 1,
+                                mb: 2,
+                                p: 2,
+                                backgroundColor: '#e8f0fe',
+                              }}
+                            >
+                              <Typography
+                                variant="caption"
+                                color="textSecondary"
+                                gutterBottom
+                              >
+                                Response:
+                              </Typography>
+                              <ReactMarkdown>{entry.response}</ReactMarkdown>
+                            </Paper>
+                          </Collapse>
+                        </React.Fragment>
+                      );
+                    })}
+                  </List>
                 </AccordionDetails>
               </Accordion>
             ))}
