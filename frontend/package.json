@@ -11,6 +11,7 @@
     "@emotion/styled": "^11.9.3",
     "@mui/icons-material": "^5.8.4",
     "@mui/material": "^5.9.0",
+    "@reduxjs/toolkit": "^2.8.2",
     "@types/reselect": "^2.0.27",
     "axios": "^0.27.2",
     "lodash": "^4.17.21",

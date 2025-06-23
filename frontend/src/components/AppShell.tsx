@@ -4,15 +4,19 @@ import ImportFromDriveDialog from "./ImportFromDriveDialog";
 import ChatViewer from "./ChatViewer";
 import { Project, ParsedMarkdown } from "../types"; // also update import
 
+import { useDispatch } from 'react-redux';
+import { setParsedMarkdown } from '../redux/parsedMarkdownSlice';
+
 const AppShell = () => {
 
-  const [parsedMarkdown, onSetParsedMarkdown] = useState<ParsedMarkdown>({ projects: [] });
+  const dispatch = useDispatch();
+
+  // const [parsedMarkdown, onSetParsedMarkdown] = useState<ParsedMarkdown>({ projects: [] });
 
   const [showImportMarkdownDialog, setShowImportMarkdownDialog] = useState(false);
 
   const handleSetParsedMarkdown = (parsedMarkdown: ParsedMarkdown) => {
-    console.log("ParsedMarkdown set:", parsedMarkdown);
-    onSetParsedMarkdown(parsedMarkdown);
+    dispatch(setParsedMarkdown(parsedMarkdown));
   };
 
   function handleCloseMarkdownDialog(): void {
@@ -30,7 +34,7 @@ const AppShell = () => {
         onSetParsedMarkdown={(parsedMarkdown) => handleSetParsedMarkdown(parsedMarkdown)}
         onClose={handleCloseMarkdownDialog}
       />
-      <ChatViewer parsedMarkdown={parsedMarkdown} />
+      <ChatViewer/>
     </div>
   );
 }

@@ -15,14 +15,17 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import ReactMarkdown from 'react-markdown';
+import { useSelector } from 'react-redux';
+import { RootState } from '../redux/store';
 
 import { ParsedMarkdown, Project, Chat, ChatEntry } from '../types';
 
-export interface ChatViewerProps {
-  parsedMarkdown: ParsedMarkdown;
-}
+// export interface ChatViewerProps {
+//   parsedMarkdown: ParsedMarkdown;
+// }
 
-const ChatViewer = ({ parsedMarkdown }: ChatViewerProps) => {
+const ChatViewer = () => {
+  const parsedMarkdown = useSelector((state: RootState) => state.parsedMarkdown.parsedMarkdown);
   const [expandedResponses, setExpandedResponses] = useState<Record<string, boolean>>({});
 
   const toggleResponse = (chatId: string, index: number) => {

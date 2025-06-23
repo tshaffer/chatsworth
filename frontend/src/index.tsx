@@ -10,14 +10,20 @@ import { rootReducer } from './models';
 import AppShell from './components/AppShell';
 import { initializeDiagnostics, loadEnvConfig } from './utilities';
 
+import { store } from './redux/store';
+
+{/* <Provider store={store}>
+  <AppShell />
+</Provider> */}
+
 window.React = React;
 
 initializeDiagnostics();
 
-export const store = createStore(
-  rootReducer,
-  composeWithDevTools(applyMiddleware(thunkMiddleware))
-);
+// export const store = createStore(
+//   rootReducer,
+//   composeWithDevTools(applyMiddleware(thunkMiddleware))
+// );
 
 const container = document.getElementById('content');
 const root = createRoot(container!);
