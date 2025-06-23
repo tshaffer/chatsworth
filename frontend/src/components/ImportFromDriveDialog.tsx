@@ -5,14 +5,14 @@ import { bindActionCreators } from 'redux';
 import DialogTitle from '@mui/material/DialogTitle';
 import Dialog from '@mui/material/Dialog';
 import { Button, DialogActions, DialogContent, Alert } from '@mui/material';
-import { ChatEntry, getServerUrl, apiUrlFragment, FileToImport } from '../types';
+import { ChatEntry, getServerUrl, apiUrlFragment, FileToImport, ParsedMarkdown } from '../types';
 import axios from 'axios';
 import { uploadFile } from '../controllers';
 
 
 export interface ImportFromDriveDialogPropsFromParent {
   open: boolean;
-  onSetChatEntries: (chatEntries: ChatEntry[]) => void;
+  onSetParsedMarkdown: (parsedMarkdown: ParsedMarkdown) => void;
   onClose: () => void;
 }
 
@@ -58,8 +58,8 @@ const ImportFromDriveDialog = (props: ImportFromDriveDialogProps) => {
         console.log('success');
         console.log(response);
         console.log(response.data);
-        const chatEntries: ChatEntry[] = response.data;
-        props.onSetChatEntries(chatEntries);
+        const parsedMarkdown: ParsedMarkdown= response.data;
+        props.onSetParsedMarkdown(parsedMarkdown);
         handleClose();
       }).catch((err: any) => {
         console.log('uploadFile returned error');

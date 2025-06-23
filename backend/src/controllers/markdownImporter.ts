@@ -3,7 +3,8 @@ import { Request, Response } from 'express';
 import path from 'path';
 import multer from 'multer';
 import * as fs from 'fs';
-import { extractChatEntries, extractChatEntriesPreservingMarkdown } from '../utilities';
+import { extractChatEntries, extractChatEntriesPreservingMarkdown, parseMarkdown } from '../utilities';
+import { ParsedMarkdown } from '../types';
 
 export const markdownImporterEndpoint = async (request: Request, response: Response, next: any) => {
 
@@ -35,10 +36,9 @@ export const markdownImporterEndpoint = async (request: Request, response: Respo
         for (const uploadedMarkdownFile of uploadedMarkdownFiles) {
           const filePath: string = uploadedMarkdownFile.path;
           const content: string = fs.readFileSync(filePath).toString();
-          // const parsedChat = extractChatEntries(content);
-          const parsedChat = extractChatEntriesPreservingMarkdown(content);
-          console.log('Parsed Chat: ', parsedChat);
-          return response.status(200).json(parsedChat);
+          const parsedMarkdown: ParsedMarkdown = parseMarkdown(content);
+          console.log('Parsed Markdown: ', parsedMarkdown);
+          return response.status(200).json(parsedMarkdown);
         }
       }
     }

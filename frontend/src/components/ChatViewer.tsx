@@ -1,16 +1,18 @@
 import ReactMarkdown from 'react-markdown';
-import { ChatEntry } from '../types';
+import { ChatEntry, ParsedMarkdown } from '../types';
 
 export interface ChatViewerProps  {
-  chatEntries: ChatEntry[];
+  parsedMarkdown: ParsedMarkdown;
 }
 
 const ChatViewer = (props: ChatViewerProps) => {
 
+  console.log('ChatViewer props:', props);
+
   return (
     <div>
       <h1>Chat Entries</h1>
-      {props.chatEntries.map((entry, index) => (
+      {props.parsedMarkdown.chatEntries.map((entry, index) => (
         <div key={index} style={{ marginBottom: '2em' }}>
           <h3>Prompt:</h3>
           <ReactMarkdown>{entry.prompt}</ReactMarkdown>

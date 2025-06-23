@@ -1,4 +1,4 @@
-import { ChatEntry } from 'base';
+import { ChatEntry, MarkdownMetadata, ParsedMarkdown } from 'base';
 import MarkdownIt from 'markdown-it';
 
 let lastCurrentResponse: string | null = null;
@@ -19,7 +19,7 @@ function outputFinalResponse(currentResponse: string | null): void {
 export function extractChatEntries(markdownText: string): ChatEntry[] {
   const md = new MarkdownIt();
   const tokens = md.parse(markdownText, {});
-  const entries: ChatEntry[] = [];
+  const chatEntries: ChatEntry[] = [];
 
   let currentPrompt: string | null = null;
   let currentResponse: string | null = null;
@@ -36,7 +36,7 @@ export function extractChatEntries(markdownText: string): ChatEntry[] {
       const content = token.content.trim();
       if (content.toLowerCase().startsWith('prompt:')) {
         if (currentPrompt && currentResponse !== null) {
-          entries.push({ prompt: currentPrompt.trim(), response: currentResponse.trim() });
+          chatEntries.push({ prompt: currentPrompt.trim(), response: currentResponse.trim() });
         }
         currentPrompt = '';
         outputFinalResponse(currentResponse);
@@ -58,16 +58,16 @@ export function extractChatEntries(markdownText: string): ChatEntry[] {
   }
 
   if (currentPrompt && currentResponse !== null) {
-    entries.push({ prompt: currentPrompt.trim(), response: currentResponse.trim() });
+    chatEntries.push({ prompt: currentPrompt.trim(), response: currentResponse.trim() });
   }
 
-  return entries;
+  return chatEntries;
 }
 
 export function extractChatEntriesPreservingMarkdown(markdownText: string): ChatEntry[] {
   const md = new MarkdownIt();
   const tokens = md.parse(markdownText, {});
-  const entries: ChatEntry[] = [];
+  const chatEntries: ChatEntry[] = [];
 
   let currentPrompt: string | null = null;
   let currentResponse: string | null = null;
@@ -83,7 +83,7 @@ export function extractChatEntriesPreservingMarkdown(markdownText: string): Chat
     if (/^##\s*prompt:/i.test(line)) {
       // Save previous entry if valid
       if (currentPrompt !== null && currentResponse !== null) {
-        entries.push({ prompt: currentPrompt.trim(), response: currentResponse.trim() });
+        chatEntries.push({ prompt: currentPrompt.trim(), response: currentResponse.trim() });
       }
       currentPrompt = '';
       currentResponse = null;
@@ -110,8 +110,36 @@ export function extractChatEntriesPreservingMarkdown(markdownText: string): Chat
 
   // Final entry
   if (currentPrompt !== null && currentResponse !== null) {
-    entries.push({ prompt: currentPrompt.trim(), response: currentResponse.trim() });
+    chatEntries.push({ prompt: currentPrompt.trim(), response: currentResponse.trim() });
   }
 
-  return entries;
+  return chatEntries;
+}
+
+export function extractMarkdownMetadata(markdownText: string): MarkdownMetadata | null {
+  const lines = markdownText.split('\n').map(line => line.trim());
+
+  const titleMatch = lines.find(line => line.startsWith('# '));
+  const userLine = lines.find(line => line.toLowerCase().startsWith('**user:**'));
+  const createdLine = lines.find(line => line.toLowerCase().startsWith('**created:**'));
+  const updatedLine = lines.find(line => line.toLowerCase().startsWith('**updated:**'));
+  const exportedLine = lines.find(line => line.toLowerCase().startsWith('**exported:**'));
+
+  if (!titleMatch || !userLine || !createdLine || !updatedLine || !exportedLine) {
+    return null; // Required metadata is missing
+  }
+
+  return {
+    title: titleMatch.replace(/^#\s*/, ''),
+    user: userLine.replace(/\*\*user:\*\*\s*/i, ''),
+    created: createdLine.replace(/\*\*created:\*\*\s*/i, ''),
+    updated: updatedLine.replace(/\*\*updated:\*\*\s*/i, ''),
+    exported: exportedLine.replace(/\*\*exported:\*\*\s*/i, ''),
+  };
+}
+
+export function parseMarkdown(markdownText: string): ParsedMarkdown {
+  const chatEntries = extractChatEntriesPreservingMarkdown(markdownText);
+  const metadata = extractMarkdownMetadata(markdownText);
+  return { chatEntries, metadata };
 }

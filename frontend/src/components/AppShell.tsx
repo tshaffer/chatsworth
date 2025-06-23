@@ -1,7 +1,7 @@
 import { Button } from "@mui/material";
 import React, { useState } from "react";
 import ImportFromDriveDialog from "./ImportFromDriveDialog";
-import { ChatEntry } from "../types";
+import { ChatEntry, ParsedMarkdown } from "../types";
 import ChatViewer from "./ChatViewer";
 
 export interface AppShellProps {
@@ -12,14 +12,14 @@ const AppShell = (props: AppShellProps) => {
 
   const { pizza } = props;
 
-  const [entries, setEntries] = useState<ChatEntry[]>([]);
+  const [parsedMarkdown, onSetParsedMarkdown] = useState<ParsedMarkdown>({ chatEntries: [], metadata: null });
 
   const [showImportMarkdownDialog, setShowImportMarkdownDialog] = useState(false);
 
 
-  const handleSetChatEntries = (chatEntries: any) => {
-    console.log("Chat entries set:", chatEntries);
-    setEntries(chatEntries);
+  const handleSetParsedMarkdown = (parsedMarkdown: ParsedMarkdown) => {
+    console.log("ParsedMarkdown set:", parsedMarkdown);
+    onSetParsedMarkdown(parsedMarkdown);
   };
 
   function handleCloseMarkdownDialog(): void {
@@ -34,10 +34,10 @@ const AppShell = (props: AppShellProps) => {
       </Button>
       <ImportFromDriveDialog
         open={showImportMarkdownDialog}
-        onSetChatEntries={(chatEntries) => handleSetChatEntries(chatEntries)}
+        onSetParsedMarkdown={(parsedMarkdown) => handleSetParsedMarkdown(parsedMarkdown)}
         onClose={handleCloseMarkdownDialog}
       />
-      <ChatViewer chatEntries={entries} />
+      <ChatViewer parsedMarkdown={parsedMarkdown} />
     </div>
   );
 }
