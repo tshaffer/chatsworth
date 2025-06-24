@@ -34,7 +34,10 @@ export const markdownImporterEndpoint = async (request: Request, response: Respo
       };
 
       // Use metadata.user or fallback to "Default Project"
-      const projectName = metadata?.user || 'Default Project';
+      const projectName =
+        metadata?.user && metadata?.created
+          ? metadata.user + metadata.created
+          : 'Default Project ' + new Date().toISOString();
       if (!projectsMap.has(projectName)) {
         projectsMap.set(projectName, {
           id: uuidv4(),

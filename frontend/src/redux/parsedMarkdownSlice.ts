@@ -20,9 +20,18 @@ const parsedMarkdownSlice = createSlice({
     },
     clearParsedMarkdown(state) {
       state.parsedMarkdown = { projects: [] };
-    }
+    },
+    appendParsedMarkdown(state, action: PayloadAction<ParsedMarkdown>) {
+      const newProjects = action.payload.projects;
+
+      // Optional: prevent duplicates by project.name
+      const existingNames = new Set(state.parsedMarkdown.projects.map(p => p.name));
+      const filteredProjects = newProjects.filter(p => !existingNames.has(p.name));
+
+      state.parsedMarkdown.projects.push(...filteredProjects);
+    },
   },
 });
 
-export const { setParsedMarkdown, clearParsedMarkdown } = parsedMarkdownSlice.actions;
+export const { setParsedMarkdown, clearParsedMarkdown, appendParsedMarkdown } = parsedMarkdownSlice.actions;
 export default parsedMarkdownSlice.reducer;

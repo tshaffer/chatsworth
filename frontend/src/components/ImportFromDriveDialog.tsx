@@ -11,7 +11,7 @@ import { uploadFile } from '../controllers';
 
 export interface ImportFromDriveDialogPropsFromParent {
   open: boolean;
-  onSetParsedMarkdown: (parsedMarkdown: ParsedMarkdown) => void;
+  onAppendParsedMarkdown: (parsedMarkdown: ParsedMarkdown) => void;
   onClose: () => void;
 }
 
@@ -57,7 +57,7 @@ const ImportFromDriveDialog = (props: ImportFromDriveDialogProps) => {
         console.log(response);
         console.log(response.data);
         const parsedMarkdown: ParsedMarkdown= response.data;
-        props.onSetParsedMarkdown(parsedMarkdown);
+        props.onAppendParsedMarkdown(parsedMarkdown);
         handleClose();
       }).catch((err: any) => {
         console.log('uploadFile returned error');
