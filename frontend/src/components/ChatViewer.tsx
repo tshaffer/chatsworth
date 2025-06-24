@@ -72,7 +72,7 @@ const ChatViewer = () => {
                                   >
                                     Prompt:
                                   </Typography>
-                                  <ReactMarkdown>{entry.prompt}</ReactMarkdown>
+                                  <ReactMarkdown>{entry.promptSummary}</ReactMarkdown>
                                 </>
                               }
                             />

@@ -20,7 +20,7 @@ export function extractChatEntriesPreservingMarkdown(markdownText: string): Chat
     if (/^##\s*prompt:/i.test(line)) {
       // Save previous entry if valid
       if (currentPrompt !== null && currentResponse !== null) {
-        chatEntries.push({ prompt: currentPrompt.trim(), response: currentResponse.trim() });
+        chatEntries.push({ originalPrompt: currentPrompt.trim(), promptSummary: currentPrompt.trim(), response: currentResponse.trim() });
       }
       currentPrompt = '';
       currentResponse = null;
@@ -47,7 +47,7 @@ export function extractChatEntriesPreservingMarkdown(markdownText: string): Chat
 
   // Final entry
   if (currentPrompt !== null && currentResponse !== null) {
-    chatEntries.push({ prompt: currentPrompt.trim(), response: currentResponse.trim() });
+    chatEntries.push({ originalPrompt: currentPrompt.trim(), promptSummary: currentPrompt.trim(), response: currentResponse.trim() });
   }
 
   return chatEntries;

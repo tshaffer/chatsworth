@@ -1,6 +1,7 @@
 // A single prompt/response pair
 export interface ChatEntry {
-  prompt: string;
+  originalPrompt: string,
+  promptSummary: string,
   response: string;
 }
 
