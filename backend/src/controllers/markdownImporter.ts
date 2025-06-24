@@ -1,15 +1,14 @@
 // markdownImporter.ts
 
 import { Request, Response } from 'express';
-import path from 'path';
 import multer from 'multer';
-import * as fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
 import { extractChatEntriesPreservingMarkdown, extractMarkdownMetadata } from '../utilities/parseChatMarkdown';
 import { ParsedMarkdown, Project, Chat } from '../types';
+import { ProjectModel } from '../models/Project'; // import the Mongoose model
 
 export const markdownImporterEndpoint = async (request: Request, response: Response) => {
-  const storage = multer.memoryStorage(); // Use memory storage for simplicity
+  const storage = multer.memoryStorage();
   const upload = multer({ storage });
 
   upload.array('files')(request, response, async (err) => {
@@ -47,8 +46,19 @@ export const markdownImporterEndpoint = async (request: Request, response: Respo
       projectsMap.get(projectName)!.chats.push(chat);
     }
 
+    // Convert Map to array of Project documents and insert
+    const parsedProjects = Array.from(projectsMap.values());
+
+    // Save all projects (replace if same name exists)
+    const saveResults = await Promise.all(parsedProjects.map(async (proj) => {
+      await ProjectModel.findOneAndDelete({ name: proj.name });
+      const newProj = new ProjectModel(proj);
+      const saved = await newProj.save();
+      return saved.toObject(); // Convert to plain JS object
+    }));
+
     const parsedMarkdown: ParsedMarkdown = {
-      projects: Array.from(projectsMap.values())
+      projects: saveResults as Project[] // Safe now that they are plain objects
     };
 
     return response.json(parsedMarkdown);

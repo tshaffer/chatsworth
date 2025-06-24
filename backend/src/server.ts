@@ -6,6 +6,7 @@ import { createRoutes } from './routes';
 const bodyParser = require('body-parser');
 import { Server } from 'http';
 import path from 'path';
+import mongoose from 'mongoose';
 
 console.log('This is a placeholder for the server code.');
 
@@ -13,7 +14,7 @@ dotenv.config();
 
 const startServer = async () => {
 
-  await connectDB();  // ✅ Ensure DB is connected before anything else
+  // await connectDB();  // ✅ Ensure DB is connected before anything else
 
   // Initialize Express app
   const app: express.Application = express();
@@ -25,7 +26,7 @@ const startServer = async () => {
   app.use(bodyParser.json());
   app.use(bodyParser.urlencoded({ extended: true }));
 
-    // add routes
+  // add routes
   createRoutes(app);
 
   // === Environment Configuration Endpoint ===
@@ -35,13 +36,18 @@ const startServer = async () => {
     });
   });
 
-    // Serve static files from the /public directory
+  // Serve static files from the /public directory
   app.use(express.static(path.join(__dirname, '../public')));
 
   // Serve the SPA on the root route (index.html)
   app.get('/', (req: Request, res: Response) => {
     res.sendFile(path.join(__dirname, '../public', 'index.html'));
   });
+
+  const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/chatsworth';
+  mongoose.connect(MONGO_URI)
+    .then(() => console.log('Connected to MongoDB'))
+    .catch((error) => console.error('Error connecting to MongoDB:', error));
 
   // Start the server
   const server: Server<any> = app.listen(PORT, () => {
