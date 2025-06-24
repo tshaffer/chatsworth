@@ -22,14 +22,13 @@ const AppShell = () => {
     setShowImportMarkdownDialog(false);
   };
 
-          // const projects = response.data;
-        // const parsedMarkdown: ParsedMarkdown = { projects };
-
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const response = await axios.get<Project[]>('/api/v1/projects');
-        const parsedMarkdown: ParsedMarkdown = (response.data as any).projects as ParsedMarkdown;
+        const response = await axios.get<{ projects: Project[] }>('/api/v1/projects');
+        const parsedMarkdown: ParsedMarkdown = {
+          projects: response.data.projects
+        };
         dispatch(setParsedMarkdown(parsedMarkdown));
       } catch (error) {
         console.error('Error loading projects:', error);
