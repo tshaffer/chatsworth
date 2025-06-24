@@ -2,7 +2,8 @@
 import mongoose from 'mongoose';
 
 const ChatEntrySchema = new mongoose.Schema({
-  prompt: String,
+  originalPrompt: String,
+  promptSummary: String,
   response: String,
 }, { _id: false });
 
