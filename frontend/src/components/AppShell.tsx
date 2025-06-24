@@ -1,15 +1,15 @@
 import { Button } from "@mui/material";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useDispatch } from 'react-redux';
+import axios from 'axios';
 
-import { ParsedMarkdown } from "../types";
+import { ParsedMarkdown, Project } from "../types";
 import ImportFromDriveDialog from "./ImportFromDriveDialog";
 import ChatViewer from "./ChatViewer";
 
 import { setParsedMarkdown } from '../redux/parsedMarkdownSlice';
 
 const AppShell = () => {
-
   const dispatch = useDispatch();
 
   const [showImportMarkdownDialog, setShowImportMarkdownDialog] = useState(false);
@@ -18,9 +18,26 @@ const AppShell = () => {
     dispatch(setParsedMarkdown(parsedMarkdown));
   };
 
-  function handleCloseMarkdownDialog(): void {
+  const handleCloseMarkdownDialog = () => {
     setShowImportMarkdownDialog(false);
-  }
+  };
+
+          // const projects = response.data;
+        // const parsedMarkdown: ParsedMarkdown = { projects };
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        const response = await axios.get<Project[]>('/api/v1/projects');
+        const parsedMarkdown: ParsedMarkdown = (response.data as any).projects as ParsedMarkdown;
+        dispatch(setParsedMarkdown(parsedMarkdown));
+      } catch (error) {
+        console.error('Error loading projects:', error);
+      }
+    };
+
+    fetchProjects();
+  }, [dispatch]);
 
   return (
     <div>
@@ -30,13 +47,12 @@ const AppShell = () => {
       </Button>
       <ImportFromDriveDialog
         open={showImportMarkdownDialog}
-        onSetParsedMarkdown={(parsedMarkdown) => handleSetParsedMarkdown(parsedMarkdown)}
+        onSetParsedMarkdown={handleSetParsedMarkdown}
         onClose={handleCloseMarkdownDialog}
       />
-      <ChatViewer/>
+      <ChatViewer />
     </div>
   );
-}
+};
 
 export default AppShell;
-
