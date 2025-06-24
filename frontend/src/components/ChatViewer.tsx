@@ -21,7 +21,9 @@ import { RootState } from '../redux/store';
 import { ParsedMarkdown, Project, Chat, ChatEntry } from '../types';
 
 const ChatViewer = () => {
-  const parsedMarkdown: ParsedMarkdown = useSelector((state: RootState) => state.parsedMarkdown.parsedMarkdown);
+  const parsedMarkdown: ParsedMarkdown = useSelector(
+    (state: RootState) => state.parsedMarkdown.parsedMarkdown
+  );
   const [expandedResponses, setExpandedResponses] = useState<Record<string, boolean>>({});
 
   const toggleResponse = (chatId: string, index: number) => {
@@ -94,6 +96,16 @@ const ChatViewer = () => {
                                 variant="caption"
                                 color="textSecondary"
                                 gutterBottom
+                              >
+                                Original Prompt:
+                              </Typography>
+                              <ReactMarkdown>{entry.originalPrompt}</ReactMarkdown>
+
+                              <Typography
+                                variant="caption"
+                                color="textSecondary"
+                                gutterBottom
+                                sx={{ mt: 2 }}
                               >
                                 Response:
                               </Typography>
