@@ -1,8 +1,13 @@
-// A single prompt/response pair
-export interface ChatEntry {
-  originalPrompt: string,
-  promptSummary: string,
-  response: string;
+// Top-level structure returned from the backend
+export interface ParsedMarkdown {
+  projects: Project[];
+}
+
+// A project (e.g., named folder or session group)
+export interface Project {
+  id: string; // unique identifier
+  name: string;
+  chats: Chat[];
 }
 
 // Metadata extracted from the markdown
@@ -22,14 +27,10 @@ export interface Chat {
   entries: ChatEntry[];
 }
 
-// A project (e.g., named folder or session group)
-export interface Project {
-  id: string; // unique identifier
-  name: string;
-  chats: Chat[];
+// A single prompt/response pair
+export interface ChatEntry {
+  originalPrompt: string,
+  promptSummary: string,
+  response: string;
 }
 
-// Top-level structure returned from the backend
-export interface ParsedMarkdown {
-  projects: Project[];
-}
