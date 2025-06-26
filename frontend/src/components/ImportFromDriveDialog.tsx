@@ -5,13 +5,13 @@ import { bindActionCreators } from 'redux';
 import DialogTitle from '@mui/material/DialogTitle';
 import Dialog from '@mui/material/Dialog';
 import { Button, DialogActions, DialogContent, Alert } from '@mui/material';
-import { ParsedMarkdown } from '../types';
+import { Projects } from '../types';
 import { uploadFile } from '../controllers';
 
 
 export interface ImportFromDriveDialogPropsFromParent {
   open: boolean;
-  onAppendParsedMarkdown: (parsedMarkdown: ParsedMarkdown) => void;
+  onAppendParsedMarkdown: (parsedMarkdown: Projects) => void;
   onClose: () => void;
 }
 
@@ -56,7 +56,7 @@ const ImportFromDriveDialog = (props: ImportFromDriveDialogProps) => {
         console.log('success');
         console.log(response);
         console.log(response.data);
-        const parsedMarkdown: ParsedMarkdown= response.data;
+        const parsedMarkdown: Projects = response.data;
         props.onAppendParsedMarkdown(parsedMarkdown);
         handleClose();
       }).catch((err: any) => {

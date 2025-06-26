@@ -18,11 +18,11 @@ import ReactMarkdown from 'react-markdown';
 import { useSelector } from 'react-redux';
 import { RootState } from '../redux/store';
 
-import { ParsedMarkdown, Project, Chat, ChatEntry } from '../types';
+import { Projects, Project, Chat, ChatEntry } from '../types';
 
 const ChatViewer = () => {
-  const parsedMarkdown: ParsedMarkdown = useSelector(
-    (state: RootState) => state.parsedMarkdown.parsedMarkdown
+  const projects: Projects = useSelector(
+    (state: RootState) => state.projects.projects
   );
   const [expandedResponses, setExpandedResponses] = useState<Record<string, boolean>>({});
 
@@ -34,13 +34,13 @@ const ChatViewer = () => {
     }));
   };
 
-  if (!parsedMarkdown.projects || parsedMarkdown.projects.length === 0) {
+  if (!projects.projects || projects.projects.length === 0) {
     return <div>No chat data loaded.</div>;
   }
 
   return (
     <div>
-      {parsedMarkdown.projects.map((project: Project) => (
+      {projects.projects.map((project: Project) => (
         <Accordion key={project.id} defaultExpanded>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Typography variant="h6">Project: {project.name}</Typography>

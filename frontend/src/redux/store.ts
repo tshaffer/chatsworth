@@ -1,9 +1,10 @@
+// redux/store.ts
 import { configureStore } from '@reduxjs/toolkit';
-import parsedMarkdownReducer from './parsedMarkdownSlice';
+import projectsReducer from './projectsSlice';
 
 export const store = configureStore({
   reducer: {
-    parsedMarkdown: parsedMarkdownReducer,
+    projects: projectsReducer,
   },
 });
 
