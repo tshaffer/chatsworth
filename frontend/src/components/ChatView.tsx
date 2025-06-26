@@ -34,13 +34,13 @@ const ChatViewer = () => {
     }));
   };
 
-  if (!projects.projects || projects.projects.length === 0) {
+  if (!projects.projectList || projects.projectList.length === 0) {
     return <div>No chat data loaded.</div>;
   }
 
   return (
     <div>
-      {projects.projects.map((project: Project) => (
+      {projects.projectList.map((project: Project) => (
         <Accordion key={project.id} defaultExpanded>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Typography variant="h6">Project: {project.name}</Typography>

@@ -1,6 +1,6 @@
 // Top-level structure returned from the backend
 export interface ProjectsState {
-  projects: Project[];
+  projectList: Project[];
 }
 
 // A project (e.g., named folder or session group)

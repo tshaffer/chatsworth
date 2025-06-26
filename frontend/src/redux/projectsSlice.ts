@@ -13,7 +13,7 @@ export const fetchProjects = createAsyncThunk(
 );
 
 const initialState: ProjectsState = {
-  projects: [],
+  projectList: [],
 };
 
 const projectsSlice = createSlice({
@@ -21,20 +21,20 @@ const projectsSlice = createSlice({
   initialState,
   reducers: {
     setProjects(state, action: PayloadAction<Project[]>) {
-      state.projects = action.payload;
+      state.projectList = action.payload;
     },
     clearProjects(state) {
-      state.projects = [];
+      state.projectList = [];
     },
     appendProjects(state, action: PayloadAction<Project[]>) {
-      const existingIds = new Set(state.projects.map((p) => p.id));
+      const existingIds = new Set(state.projectList.map((p) => p.id));
       const newProjects = action.payload.filter((p) => !existingIds.has(p.id));
-      state.projects.push(...newProjects);
+      state.projectList.push(...newProjects);
     },
   },
   extraReducers: (builder) => {
     builder.addCase(fetchProjects.fulfilled, (state, action) => {
-      state.projects = action.payload;
+      state.projectList = action.payload;
     });
   },
 });
