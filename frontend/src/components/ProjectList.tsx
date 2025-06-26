@@ -112,11 +112,21 @@ const ProjectList: React.FC = () => {
                 {project.chats.map((chat) => (
                   <ListItem
                     key={chat.id}
-                    sx={{ pl: 4 }}
+                    sx={{
+                      pl: 4,
+                      backgroundColor: selectedChatId === chat.id ? 'action.selected' : undefined,
+                      cursor: editingChatId === chat.id ? 'default' : 'pointer',
+                    }}
+                    onClick={() => {
+                      if (editingChatId !== chat.id) {
+                        dispatch(setSelectedChatId(chat.id));
+                      }
+                    }}
                     secondaryAction={
                       <IconButton
                         size="small"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation(); // prevent triggering selection when clicking ✎
                           setEditingChatId(chat.id);
                           setEditChatTitle(chat.title);
                         }}
