@@ -1,3 +1,4 @@
 export * from './AppShell';
-export * from './ChatViewer';
+export * from './ChatView';
 export * from './ImportFromDriveDialog';
+export * from './ProjectList';
