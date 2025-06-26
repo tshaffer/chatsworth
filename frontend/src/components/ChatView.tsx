@@ -1,13 +1,19 @@
 // components/ChatView.tsx
-import React from 'react';
+import React, { useState } from 'react';
+import {
+  Typography,
+  List,
+  ListItemButton,
+  ListItemText,
+  Collapse,
+  Paper,
+  Box,
+} from '@mui/material';
+import ExpandLess from '@mui/icons-material/ExpandLess';
+import ExpandMore from '@mui/icons-material/ExpandMore';
+import ReactMarkdown from 'react-markdown';
 import { useSelector } from 'react-redux';
 import { RootState } from '../redux/store';
-import {
-  Box,
-  Typography,
-  Paper,
-  Divider,
-} from '@mui/material';
 
 const ChatView: React.FC = () => {
   const selectedChatId = useSelector((state: RootState) => state.projects.selectedChatId);
@@ -16,6 +22,16 @@ const ChatView: React.FC = () => {
   const selectedChat = allProjects
     .flatMap((project) => project.chats)
     .find((chat) => chat.id === selectedChatId);
+
+  const [expandedResponses, setExpandedResponses] = useState<Record<string, boolean>>({});
+
+  const toggleResponse = (index: number) => {
+    const key = `${selectedChat?.id}-${index}`;
+    setExpandedResponses((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
 
   if (!selectedChat) {
     return (
@@ -30,39 +46,71 @@ const ChatView: React.FC = () => {
       <Typography variant="h5" gutterBottom>
         {selectedChat.title}
       </Typography>
-      <Divider sx={{ mb: 2 }} />
 
       {selectedChat.entries.length === 0 ? (
         <Typography variant="body2" color="text.secondary">
-          No entries yet in this chat.
+          No entries in this chat.
         </Typography>
       ) : (
-        selectedChat.entries.map((entry, index) => (
-          <Paper key={index} sx={{ mb: 2, p: 2 }}>
-            <Typography variant="subtitle2" color="text.secondary">
-              Original Prompt
-            </Typography>
-            <Typography variant="body1" gutterBottom>
-              {entry.originalPrompt}
-            </Typography>
+        <List disablePadding>
+          {selectedChat.entries.map((entry, index) => {
+            const key = `${selectedChat.id}-${index}`;
+            const expanded = expandedResponses[key] || false;
+            return (
+              <React.Fragment key={key}>
+                <ListItemButton onClick={() => toggleResponse(index)}>
+                  <ListItemText
+                    primary={
+                      <>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          gutterBottom
+                        >
+                          Prompt:
+                        </Typography>
+                        <ReactMarkdown>{entry.promptSummary}</ReactMarkdown>
+                      </>
+                    }
+                  />
+                  {expanded ? <ExpandLess /> : <ExpandMore />}
+                </ListItemButton>
+                <Collapse in={expanded} timeout="auto" unmountOnExit>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      ml: 4,
+                      mr: 2,
+                      mt: 1,
+                      mb: 2,
+                      p: 2,
+                      backgroundColor: '#e8f0fe',
+                    }}
+                  >
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      gutterBottom
+                    >
+                      Original Prompt:
+                    </Typography>
+                    <ReactMarkdown>{entry.originalPrompt}</ReactMarkdown>
 
-            <Typography variant="subtitle2" color="text.secondary">
-              Summary
-            </Typography>
-            <Typography variant="body2" gutterBottom>
-              {entry.promptSummary}
-            </Typography>
-
-            <Divider sx={{ my: 1 }} />
-
-            <Typography variant="subtitle2" color="text.secondary">
-              Response
-            </Typography>
-            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-              {entry.response}
-            </Typography>
-          </Paper>
-        ))
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      gutterBottom
+                      sx={{ mt: 2 }}
+                    >
+                      Response:
+                    </Typography>
+                    <ReactMarkdown>{entry.response}</ReactMarkdown>
+                  </Paper>
+                </Collapse>
+              </React.Fragment>
+            );
+          })}
+        </List>
       )}
     </Box>
   );
