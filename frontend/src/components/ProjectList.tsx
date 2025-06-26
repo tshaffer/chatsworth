@@ -1,4 +1,7 @@
 // components/ProjectList.tsx
+import { useDispatch, useSelector } from 'react-redux';
+import { RootState, AppDispatch } from '../redux/store';
+
 import React, { useState } from 'react';
 import {
   Box,
@@ -17,10 +20,15 @@ import {
   Edit as EditIcon,
   MoreVert as MoreVertIcon,
 } from '@mui/icons-material';
-import { useSelector } from 'react-redux';
-import { RootState } from '../redux/store';
+
+import { setSelectedChatId } from '../redux/projectsSlice';
 
 const ProjectList: React.FC = () => {
+
+  const selectedChatId = useSelector((state: RootState) => state.projects.selectedChatId);
+  const dispatch = useDispatch<AppDispatch>();
+
+
   const projects = useSelector((state: RootState) => state.projects.projectList);
 
   const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(
@@ -71,7 +79,15 @@ const ProjectList: React.FC = () => {
             <Collapse in={expandedProjectIds.has(project.id)} timeout="auto" unmountOnExit>
               <List component="div" disablePadding>
                 {project.chats.map((chat) => (
-                  <ListItem key={chat.id} sx={{ pl: 4 }}>
+                  <ListItem
+                    key={chat.id}
+                    sx={{
+                      pl: 4,
+                      backgroundColor: selectedChatId === chat.id ? 'action.selected' : undefined,
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => dispatch(setSelectedChatId(chat.id))}
+                  >
                     <ListItemText primary={`• ${chat.title}`} />
                   </ListItem>
                 ))}

@@ -1,6 +1,7 @@
 // Top-level structure returned from the backend
 export interface ProjectsState {
   projectList: Project[];
+  selectedChatId: string | null;
 }
 
 // A project (e.g., named folder or session group)

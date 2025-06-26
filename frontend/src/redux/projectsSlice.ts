@@ -14,6 +14,7 @@ export const fetchProjects = createAsyncThunk(
 
 const initialState: ProjectsState = {
   projectList: [],
+  selectedChatId: null,
 };
 
 const projectsSlice = createSlice({
@@ -31,6 +32,9 @@ const projectsSlice = createSlice({
       const newProjects = action.payload.filter((p) => !existingIds.has(p.id));
       state.projectList.push(...newProjects);
     },
+    setSelectedChatId(state, action: PayloadAction<string | null>) {
+      state.selectedChatId = action.payload;
+    }
   },
   extraReducers: (builder) => {
     builder.addCase(fetchProjects.fulfilled, (state, action) => {
@@ -39,5 +43,5 @@ const projectsSlice = createSlice({
   },
 });
 
-export const { setProjects, clearProjects, appendProjects } = projectsSlice.actions;
+export const { setProjects, clearProjects, appendProjects, setSelectedChatId } = projectsSlice.actions;
 export default projectsSlice.reducer;
