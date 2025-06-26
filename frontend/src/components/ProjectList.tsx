@@ -13,6 +13,7 @@ import {
   Collapse,
   Button,
   Divider,
+  TextField,
 } from '@mui/material';
 import {
   ExpandLess,
@@ -21,19 +22,19 @@ import {
   MoreVert as MoreVertIcon,
 } from '@mui/icons-material';
 
-import { setSelectedChatId } from '../redux/projectsSlice';
+import { renameProject, setSelectedChatId } from '../redux/projectsSlice';
 
 const ProjectList: React.FC = () => {
 
-  const selectedChatId = useSelector((state: RootState) => state.projects.selectedChatId);
   const dispatch = useDispatch<AppDispatch>();
 
-
   const projects = useSelector((state: RootState) => state.projects.projectList);
-
+  const selectedChatId = useSelector((state: RootState) => state.projects.selectedChatId);
+  const [editProjectName, setEditProjectName] = useState('');
   const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(
     new Set(projects.map((p) => p.id))
   );
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
 
   const toggleProject = (projectId: string) => {
     setExpandedProjectIds((prev) => {
@@ -73,7 +74,35 @@ const ProjectList: React.FC = () => {
               >
                 {expandedProjectIds.has(project.id) ? <ExpandLess /> : <ExpandMore />}
               </ListItemIcon>
-              <ListItemText primary={project.name} />
+              {editingProjectId === project.id ? (
+                <TextField
+                  fullWidth
+                  size="small"
+                  value={editProjectName}
+                  onChange={(e) => setEditProjectName(e.target.value)}
+                  onBlur={() => {
+                    if (editProjectName.trim() !== project.name) {
+                      dispatch(renameProject({ projectId: project.id, name: editProjectName.trim() }));
+                    }
+                    setEditingProjectId(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      (e.target as HTMLInputElement).blur();
+                    }
+                  }}
+                  autoFocus
+                />
+              ) : (
+                <ListItemText
+                  primary={project.name}
+                  onClick={() => {
+                    setEditingProjectId(project.id);
+                    setEditProjectName(project.name);
+                  }}
+                  sx={{ cursor: 'pointer' }}
+                />
+              )}
             </ListItem>
 
             <Collapse in={expandedProjectIds.has(project.id)} timeout="auto" unmountOnExit>

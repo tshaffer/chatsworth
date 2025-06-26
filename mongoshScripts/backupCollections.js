@@ -4,7 +4,7 @@ const collections = [
   "projects",
 ];
 
-const outputDir = "/Users/tedshaffer/Documents/MongoDBBackups/chatsworth/backup-06-24-2";
+const outputDir = "/Users/tedshaffer/Documents/MongoDBBackups/chatsworth/backup-06-25-1";
 
 const fs = require("fs");
 

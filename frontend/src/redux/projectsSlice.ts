@@ -12,6 +12,17 @@ export const fetchProjects = createAsyncThunk(
   }
 );
 
+export const renameProject = createAsyncThunk<
+  { projectId: string; name: string },
+  { projectId: string; name: string }
+>(
+  'projects/renameProject',
+  async ({ projectId, name }) => {
+    await axios.patch(`/api/v1/projects/${projectId}`, { name });
+    return { projectId, name };
+  }
+);
+
 export const updatePromptSummary = createAsyncThunk<
   { chatId: string; entryIndex: number; promptSummary: string },
   { chatId: string; entryIndex: number; promptSummary: string }
@@ -51,6 +62,13 @@ const projectsSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
+      .addCase(renameProject.fulfilled, (state, action) => {
+        const { projectId, name } = action.payload;
+        const project = state.projectList.find(p => p.id === projectId);
+        if (project) {
+          project.name = name;
+        }
+      })
       .addCase(fetchProjects.fulfilled, (state, action) => {
         state.projectList = action.payload;
       })
