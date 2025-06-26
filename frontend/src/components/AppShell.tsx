@@ -1,12 +1,25 @@
 // components/AppShell.tsx
 import React from 'react';
+import { useEffect } from 'react';
+import { useDispatch } from 'react-redux';
 import { Box, CssBaseline, Drawer, Toolbar, AppBar, Typography } from '@mui/material';
 import ProjectList from './ProjectList';
 import ChatView from './ChatView';
 
+import { fetchProjects } from '../redux/projectsSlice';
+import { AppDispatch } from '../redux/store';
+
 const drawerWidth = 280;
 
 const AppShell: React.FC = () => {
+
+    const dispatch = useDispatch<AppDispatch>();
+
+  useEffect(() => {
+    // Fetch projects when the component mounts
+    dispatch(fetchProjects());
+  }, [dispatch]);
+  
   return (
     <Box sx={{ display: 'flex' }}>
       <CssBaseline />

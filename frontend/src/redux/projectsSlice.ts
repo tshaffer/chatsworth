@@ -1,6 +1,16 @@
 // redux/projectsSlice.ts
+import { createAsyncThunk } from '@reduxjs/toolkit';
+import axios from 'axios';
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { Project, ProjectsState } from '../types';
+
+export const fetchProjects = createAsyncThunk(
+  'projects/fetchProjects',
+  async () => {
+    const response = await axios.get('/api/v1/projects');
+    return response.data.projects; // ✅ unwrap the data
+  }
+);
 
 const initialState: ProjectsState = {
   projects: [],
@@ -21,6 +31,11 @@ const projectsSlice = createSlice({
       const newProjects = action.payload.filter((p) => !existingIds.has(p.id));
       state.projects.push(...newProjects);
     },
+  },
+  extraReducers: (builder) => {
+    builder.addCase(fetchProjects.fulfilled, (state, action) => {
+      state.projects = action.payload;
+    });
   },
 });
 
