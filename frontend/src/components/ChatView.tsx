@@ -18,11 +18,11 @@ import ReactMarkdown from 'react-markdown';
 import { useSelector } from 'react-redux';
 import { RootState } from '../redux/store';
 
-import { Projects, Project, Chat, ChatEntry } from '../types';
+import { ProjectsState, Project, Chat, ChatEntry } from '../types';
 
 const ChatViewer = () => {
-  const projects: Projects = useSelector(
-    (state: RootState) => state.projects.projects
+  const projects: ProjectsState = useSelector(
+    (state: RootState) => state.projects,
   );
   const [expandedResponses, setExpandedResponses] = useState<Record<string, boolean>>({});
 

@@ -1,37 +1,28 @@
+// redux/projectsSlice.ts
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { Projects } from '../types';
-
-interface ProjectsState {
-  projects: Projects;
-}
+import { Project, ProjectsState } from '../types';
 
 const initialState: ProjectsState = {
-  projects: {
-    projects: [],
-  },
+  projects: [],
 };
 
-const parsedMarkdownSlice = createSlice({
-  name: 'parsedMarkdown',
+const projectsSlice = createSlice({
+  name: 'projects',
   initialState,
   reducers: {
-    setParsedMarkdown(state, action: PayloadAction<Projects>) {
+    setProjects(state, action: PayloadAction<Project[]>) {
       state.projects = action.payload;
     },
     clearProjects(state) {
-      state.projects = { projects: [] };
+      state.projects = [];
     },
-    appendProject(state, action: PayloadAction<Projects>) {
-      const newProjects = action.payload.projects;
-
-      // Optional: prevent duplicates by project.name
-      const existingNames = new Set(state.projects.projects.map(p => p.name));
-      const filteredProjects = newProjects.filter(p => !existingNames.has(p.name));
-
-      state.projects.projects.push(...filteredProjects);
+    appendProjects(state, action: PayloadAction<Project[]>) {
+      const existingIds = new Set(state.projects.map((p) => p.id));
+      const newProjects = action.payload.filter((p) => !existingIds.has(p.id));
+      state.projects.push(...newProjects);
     },
   },
 });
 
-export const { setParsedMarkdown, clearProjects: clearParsedMarkdown, appendProject: appendParsedMarkdown } = parsedMarkdownSlice.actions;
-export default parsedMarkdownSlice.reducer;
+export const { setProjects, clearProjects, appendProjects } = projectsSlice.actions;
+export default projectsSlice.reducer;

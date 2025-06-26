@@ -1,5 +1,5 @@
 // Top-level structure returned from the backend
-export interface Projects {
+export interface ProjectsState {
   projects: Project[];
 }
 
