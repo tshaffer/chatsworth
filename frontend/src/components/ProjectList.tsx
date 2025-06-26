@@ -22,7 +22,7 @@ import {
   MoreVert as MoreVertIcon,
 } from '@mui/icons-material';
 
-import { renameProject, setSelectedChatId } from '../redux/projectsSlice';
+import { renameChat, renameProject, setSelectedChatId } from '../redux/projectsSlice';
 
 const ProjectList: React.FC = () => {
 
@@ -35,6 +35,9 @@ const ProjectList: React.FC = () => {
     new Set(projects.map((p) => p.id))
   );
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+
+  const [editingChatId, setEditingChatId] = useState<string | null>(null);
+  const [editChatTitle, setEditChatTitle] = useState('');
 
   const toggleProject = (projectId: string) => {
     setExpandedProjectIds((prev) => {
@@ -109,14 +112,41 @@ const ProjectList: React.FC = () => {
                 {project.chats.map((chat) => (
                   <ListItem
                     key={chat.id}
-                    sx={{
-                      pl: 4,
-                      backgroundColor: selectedChatId === chat.id ? 'action.selected' : undefined,
-                      cursor: 'pointer',
-                    }}
-                    onClick={() => dispatch(setSelectedChatId(chat.id))}
+                    sx={{ pl: 4 }}
+                    secondaryAction={
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          setEditingChatId(chat.id);
+                          setEditChatTitle(chat.title);
+                        }}
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    }
                   >
-                    <ListItemText primary={`• ${chat.title}`} />
+                    {editingChatId === chat.id ? (
+                      <TextField
+                        fullWidth
+                        size="small"
+                        value={editChatTitle}
+                        onChange={(e) => setEditChatTitle(e.target.value)}
+                        onBlur={() => {
+                          if (editChatTitle.trim() !== chat.title) {
+                            dispatch(renameChat({ chatId: chat.id, title: editChatTitle.trim() }));
+                          }
+                          setEditingChatId(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            (e.target as HTMLInputElement).blur();
+                          }
+                        }}
+                        autoFocus
+                      />
+                    ) : (
+                      <ListItemText primary={`• ${chat.title}`} />
+                    )}
                   </ListItem>
                 ))}
               </List>

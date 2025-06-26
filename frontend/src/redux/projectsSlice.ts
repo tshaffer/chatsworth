@@ -23,6 +23,17 @@ export const renameProject = createAsyncThunk<
   }
 );
 
+export const renameChat = createAsyncThunk<
+  { chatId: string; title: string },
+  { chatId: string; title: string }
+>(
+  'projects/renameChat',
+  async ({ chatId, title }) => {
+    await axios.patch(`/api/v1/chats/${chatId}`, { newTitle: title });
+    return { chatId, title }; // still return title for local Redux update
+  }
+);
+
 export const updatePromptSummary = createAsyncThunk<
   { chatId: string; entryIndex: number; promptSummary: string },
   { chatId: string; entryIndex: number; promptSummary: string }
@@ -62,6 +73,9 @@ const projectsSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
+      .addCase(fetchProjects.fulfilled, (state, action) => {
+        state.projectList = action.payload;
+      })
       .addCase(renameProject.fulfilled, (state, action) => {
         const { projectId, name } = action.payload;
         const project = state.projectList.find(p => p.id === projectId);
@@ -69,8 +83,15 @@ const projectsSlice = createSlice({
           project.name = name;
         }
       })
-      .addCase(fetchProjects.fulfilled, (state, action) => {
-        state.projectList = action.payload;
+      .addCase(renameChat.fulfilled, (state, action) => {
+        const { chatId, title } = action.payload;
+        for (const project of state.projectList) {
+          const chat = project.chats.find(c => c.id === chatId);
+          if (chat) {
+            chat.title = title;
+            break;
+          }
+        }
       })
       .addCase(updatePromptSummary.fulfilled, (state, action) => {
         const { chatId, entryIndex, promptSummary } = action.payload;
