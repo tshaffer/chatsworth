@@ -59,7 +59,13 @@ const ProjectList: React.FC = () => {
               disableGutters
               secondaryAction={
                 <Box>
-                  <IconButton size="small">
+                  <IconButton
+                    size="small"
+                    onClick={() => {
+                      setEditingProjectId(project.id);
+                      setEditProjectName(project.name);
+                    }}
+                  >
                     <EditIcon fontSize="small" />
                   </IconButton>
                   <IconButton size="small">
@@ -94,14 +100,7 @@ const ProjectList: React.FC = () => {
                   autoFocus
                 />
               ) : (
-                <ListItemText
-                  primary={project.name}
-                  onClick={() => {
-                    setEditingProjectId(project.id);
-                    setEditProjectName(project.name);
-                  }}
-                  sx={{ cursor: 'pointer' }}
-                />
+                <ListItemText primary={project.name} />
               )}
             </ListItem>
 
