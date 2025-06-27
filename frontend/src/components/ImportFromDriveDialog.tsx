@@ -4,10 +4,9 @@ import { bindActionCreators } from 'redux';
 
 import DialogTitle from '@mui/material/DialogTitle';
 import Dialog from '@mui/material/Dialog';
-import { Button, DialogActions, DialogContent, Alert } from '@mui/material';
+import { Button, DialogActions, DialogContent, Alert, TextField } from '@mui/material';
 import { ProjectsState } from '../types';
 import { uploadFile } from '../controllers';
-
 
 export interface ImportFromDriveDialogPropsFromParent {
   open: boolean;
@@ -20,73 +19,75 @@ export interface ImportFromDriveDialogProps extends ImportFromDriveDialogPropsFr
 }
 
 const ImportFromDriveDialog = (props: ImportFromDriveDialogProps) => {
-
   const [selectedFiles, setSelectedFiles] = React.useState<FileList | null>(null);
-
+  const [projectName, setProjectName] = React.useState('');
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    if (props.open) {
-    }
-  }, [props.open]);
 
   const handleClose = () => {
     props.onClose();
   };
 
   const handleImportFilesSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
+    if (event.target.files && event.target.files.length > 0) {
+      const file = event.target.files[0];
       setSelectedFiles(event.target.files);
+      const defaultName = file.name.replace(/\.md$/i, '');
+      setProjectName(defaultName);
     }
   };
 
   const handleImport = async () => {
-
-    console.log('selectedFiles:', selectedFiles);
-
     if (!selectedFiles) return;
 
     const formData = new FormData();
     Array.from(selectedFiles).forEach(file => {
       formData.append('files', file);
     });
+    formData.append('projectName', projectName);
 
-    props.onUploadFile(formData)
-      .then((response: any) => {
-        console.log('success');
-        console.log(response);
-        console.log(response.data);
-        const parsedMarkdown: ProjectsState = response.data;
-        props.onAppendParsedMarkdown(parsedMarkdown);
-        handleClose();
-      }).catch((err: any) => {
-        console.log('uploadFile returned error');
-        console.log(err);
-      });
+    try {
+      const response = await props.onUploadFile(formData);
+      const parsedMarkdown: ProjectsState = response.data;
+      props.onAppendParsedMarkdown(parsedMarkdown);
+      handleClose();
+    } catch (err) {
+      console.error('uploadFile returned error:', err);
+      setErrorMessage('Failed to upload markdown file.');
+    }
   };
 
   return (
     <>
       <Dialog onClose={handleClose} open={props.open} maxWidth="md" fullWidth>
         <DialogTitle>Import Markdown</DialogTitle>
-        <DialogContent style={{ paddingTop: '6px', paddingBottom: '0px' }} sx={{ width: '100%', minWidth: '500px' }}>
+        <DialogContent sx={{ pt: 1, pb: 0, minWidth: '500px' }}>
           <input
             type="file"
             accept=".md"
             onChange={handleImportFilesSelect}
             id="importFilesInput"
             name="file"
-            style={{ marginTop: '1rem' }}
+            style={{ marginTop: '1rem', display: 'block' }}
+          />
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Project Name"
+            value={projectName}
+            onChange={(e) => setProjectName(e.target.value)}
           />
         </DialogContent>
-
         <DialogActions>
           <Button onClick={handleClose}>Close</Button>
-          <Button onClick={handleImport} autoFocus disabled={!selectedFiles || selectedFiles.length === 0}>
+          <Button
+            onClick={handleImport}
+            autoFocus
+            disabled={!selectedFiles || selectedFiles.length === 0 || !projectName.trim()}
+          >
             Import
           </Button>
         </DialogActions>
-      </Dialog >
+      </Dialog>
 
       {errorMessage && (
         <Dialog open={true} onClose={() => setErrorMessage(null)}>
@@ -98,16 +99,10 @@ const ImportFromDriveDialog = (props: ImportFromDriveDialogProps) => {
             <Button onClick={() => setErrorMessage(null)}>Close</Button>
           </DialogActions>
         </Dialog>
-      )
-      }
+      )}
     </>
   );
 };
-
-function mapStateToProps(state: any) {
-  return {
-  };
-}
 
 const mapDispatchToProps = (dispatch: any) => {
   return bindActionCreators({
@@ -115,4 +110,4 @@ const mapDispatchToProps = (dispatch: any) => {
   }, dispatch);
 };
 
-export default connect(mapStateToProps, mapDispatchToProps)(ImportFromDriveDialog);
+export default connect(null, mapDispatchToProps)(ImportFromDriveDialog);

@@ -1,6 +1,10 @@
 // components/ProjectList.tsx
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '../redux/store';
+import ImportFromDriveDialog from './ImportFromDriveDialog';
+import { uploadFile } from '../controllers';
+import { appendParsedMarkdown } from '../redux/projectsSlice'; // Make sure this exists
+import { ProjectsState } from '../types';
 
 import React, { useState } from 'react';
 import {
@@ -39,6 +43,8 @@ const ProjectList: React.FC = () => {
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editChatTitle, setEditChatTitle] = useState('');
 
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+
   const toggleProject = (projectId: string) => {
     setExpandedProjectIds((prev) => {
       const updated = new Set(prev);
@@ -49,10 +55,17 @@ const ProjectList: React.FC = () => {
 
   return (
     <Box p={2}>
-      <Button variant="contained" fullWidth sx={{ mb: 2 }}>
+      <Button variant="contained" fullWidth sx={{ mb: 1 }}>
         + New Project
       </Button>
-
+      <Button
+        variant="outlined"
+        fullWidth
+        sx={{ mb: 2 }}
+        onClick={() => setImportDialogOpen(true)}
+      >
+        Import Markdown
+      </Button>
       {projects.length === 0 ? (
         <Box sx={{ textAlign: 'center', mt: 4, fontStyle: 'italic' }}>No projects found.</Box>
       ) : (
@@ -166,6 +179,13 @@ const ProjectList: React.FC = () => {
           </Box>
         ))
       )}
+      <ImportFromDriveDialog
+        open={importDialogOpen}
+        onClose={() => setImportDialogOpen(false)}
+        onAppendParsedMarkdown={(parsed: ProjectsState) => {
+          dispatch(appendParsedMarkdown(parsed));
+        }}
+      />
     </Box>
   );
 };

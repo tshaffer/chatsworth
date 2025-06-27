@@ -69,7 +69,16 @@ const projectsSlice = createSlice({
     },
     setSelectedChatId(state, action: PayloadAction<string | null>) {
       state.selectedChatId = action.payload;
-    }
+    },
+    appendParsedMarkdown(state, action: PayloadAction<ProjectsState>) {
+      const incomingProjects = action.payload.projectList;
+
+      // Avoid duplicates by ID
+      const existingIds = new Set(state.projectList.map(p => p.id));
+      const newProjects = incomingProjects.filter(p => !existingIds.has(p.id));
+
+      state.projectList.push(...newProjects);
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -107,5 +116,5 @@ const projectsSlice = createSlice({
   }
 });
 
-export const { setProjects, clearProjects, appendProjects, setSelectedChatId } = projectsSlice.actions;
+export const { setProjects, clearProjects, appendProjects, setSelectedChatId, appendParsedMarkdown } = projectsSlice.actions;
 export default projectsSlice.reducer;
