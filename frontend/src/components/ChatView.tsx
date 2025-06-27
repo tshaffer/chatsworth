@@ -1,5 +1,5 @@
 // components/ChatView.tsx
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Typography,
   List,
@@ -16,17 +16,22 @@ import { useSelector } from 'react-redux';
 import { RootState } from '../redux/store';
 import { TextField, IconButton } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
+import CloseIcon from '@mui/icons-material/Close';
 import { useDispatch } from 'react-redux';
 import { AppDispatch } from '../redux/store';
 import { updatePromptSummary } from '../redux/projectsSlice';
 
 
 const ChatView: React.FC = () => {
+
   const selectedChatId = useSelector((state: RootState) => state.projects.selectedChatId);
   const allProjects = useSelector((state: RootState) => state.projects.projectList);
 
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
+
+  const cancelRef = useRef(false);
+
   const dispatch = useDispatch<AppDispatch>();
 
   const selectedChat = allProjects
@@ -51,126 +56,150 @@ const ChatView: React.FC = () => {
     );
   }
 
-return (
-  <Box>
-    <Typography variant="h5" gutterBottom>
-      {selectedChat.title}
-    </Typography>
-
-    {selectedChat.entries.length === 0 ? (
-      <Typography variant="body2" color="text.secondary">
-        No entries in this chat.
+  return (
+    <Box>
+      <Typography variant="h5" gutterBottom>
+        {selectedChat.title}
       </Typography>
-    ) : (
-      <List disablePadding>
-        {selectedChat.entries.map((entry, index) => {
-          const key = `${selectedChat.id}-${index}`;
-          const expanded = expandedResponses[key] || false;
-          const isEditing = editingIndex === index;
 
-          return (
-            <React.Fragment key={key}>
-              <ListItemButton onClick={() => toggleResponse(index)}>
-                <ListItemText
-                  primary={
-                    <>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        gutterBottom
-                      >
-                        Prompt:
-                      </Typography>
-                      {isEditing ? (
-                        <TextField
-                          fullWidth
-                          size="small"
-                          variant="outlined"
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          onBlur={() => {
-                            dispatch(updatePromptSummary({
-                              chatId: selectedChat.id,
-                              entryIndex: index,
-                              promptSummary: editValue,
-                            }));
-                            setEditingIndex(null);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              (e.target as HTMLInputElement).blur(); // trigger save
-                            }
-                          }}
-                          autoFocus
-                        />
-                      ) : (
-                        <Box
-                          sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                          }}
+      {selectedChat.entries.length === 0 ? (
+        <Typography variant="body2" color="text.secondary">
+          No entries in this chat.
+        </Typography>
+      ) : (
+        <List disablePadding>
+          {selectedChat.entries.map((entry, index) => {
+            const key = `${selectedChat.id}-${index}`;
+            const expanded = expandedResponses[key] || false;
+            const isEditing = editingIndex === index;
+
+            return (
+              <React.Fragment key={key}>
+                <ListItemButton onClick={() => toggleResponse(index)}>
+                  <ListItemText
+                    primary={
+                      <>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          gutterBottom
                         >
-                          <Box sx={{ flexGrow: 1 }}>
-                            <ReactMarkdown>{entry.promptSummary}</ReactMarkdown>
+                          Prompt:
+                        </Typography>
+                        {isEditing ? (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <TextField
+                              fullWidth
+                              size="small"
+                              variant="outlined"
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              onClick={(e) => e.stopPropagation()}  // ✅ avoid accordion toggle
+                              onBlur={() => {
+                                if (!cancelRef.current && editValue.trim() !== entry.promptSummary) {
+                                  dispatch(updatePromptSummary({
+                                    chatId: selectedChat.id,
+                                    entryIndex: index,
+                                    promptSummary: editValue.trim(),
+                                  }));
+                                }
+                                cancelRef.current = false;
+                                setEditingIndex(null);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  (e.target as HTMLInputElement).blur();
+                                } else if (e.key === 'Escape') {
+                                  e.preventDefault();
+                                  cancelRef.current = true;
+                                  setEditingIndex(null);
+                                }
+                              }}
+                              autoFocus
+                            />
+                            <IconButton
+                              size="small"
+                              onMouseDown={(e) => {
+                                console.log('Close button clicked, cancelRef:', cancelRef.current);
+                                e.preventDefault();            // ❗ Prevent focus shift from TextField
+                                e.stopPropagation();           // Don't toggle accordion
+                                cancelRef.current = true;      // Mark cancel intention BEFORE blur
+                              }}
+                              onClick={() => {
+                                setEditingIndex(null);         // Clean up after click
+                              }}
+                            >
+                              <CloseIcon fontSize="small" />
+                            </IconButton>
                           </Box>
-                          <IconButton
-                            size="small"
-                            onClick={(e) => {
-                              e.stopPropagation(); // prevent expanding
-                              setEditingIndex(index);
-                              setEditValue(entry.promptSummary);
+                        ) : (
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
                             }}
                           >
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Box>
-                      )}
-                    </>
-                  }
-                />
-                {expanded ? <ExpandLess /> : <ExpandMore />}
-              </ListItemButton>
+                            <Box sx={{ flexGrow: 1 }}>
+                              <ReactMarkdown>{entry.promptSummary}</ReactMarkdown>
+                            </Box>
+                            <IconButton
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingIndex(index);
+                                setEditValue(entry.promptSummary);
+                              }}
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
+                        )}
+                      </>
+                    }
+                  />
+                  {expanded ? <ExpandLess /> : <ExpandMore />}
+                </ListItemButton>
 
-              <Collapse in={expanded} timeout="auto" unmountOnExit>
-                <Paper
-                  variant="outlined"
-                  sx={{
-                    ml: 4,
-                    mr: 2,
-                    mt: 1,
-                    mb: 2,
-                    p: 2,
-                    backgroundColor: '#e8f0fe',
-                  }}
-                >
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    gutterBottom
+                <Collapse in={expanded} timeout="auto" unmountOnExit>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      ml: 4,
+                      mr: 2,
+                      mt: 1,
+                      mb: 2,
+                      p: 2,
+                      backgroundColor: '#e8f0fe',
+                    }}
                   >
-                    Original Prompt:
-                  </Typography>
-                  <ReactMarkdown>{entry.originalPrompt}</ReactMarkdown>
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      gutterBottom
+                    >
+                      Original Prompt:
+                    </Typography>
+                    <ReactMarkdown>{entry.originalPrompt}</ReactMarkdown>
 
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    gutterBottom
-                    sx={{ mt: 2 }}
-                  >
-                    Response:
-                  </Typography>
-                  <ReactMarkdown>{entry.response}</ReactMarkdown>
-                </Paper>
-              </Collapse>
-            </React.Fragment>
-          );
-        })}
-      </List>
-    )}
-  </Box>
-);
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      gutterBottom
+                      sx={{ mt: 2 }}
+                    >
+                      Response:
+                    </Typography>
+                    <ReactMarkdown>{entry.response}</ReactMarkdown>
+                  </Paper>
+                </Collapse>
+              </React.Fragment>
+            );
+          })}
+        </List>
+      )}
+    </Box>
+  );
 };
 
 export default ChatView;
