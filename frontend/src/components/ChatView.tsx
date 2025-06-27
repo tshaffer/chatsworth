@@ -17,9 +17,11 @@ import { RootState } from '../redux/store';
 import { TextField, IconButton } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { useDispatch } from 'react-redux';
 import { AppDispatch } from '../redux/store';
 import { updatePromptSummary } from '../redux/projectsSlice';
+import { deleteChatEntry } from '../redux/projectsSlice';
 
 
 const ChatView: React.FC = () => {
@@ -94,14 +96,19 @@ const ChatView: React.FC = () => {
                               variant="outlined"
                               value={editValue}
                               onChange={(e) => setEditValue(e.target.value)}
-                              onClick={(e) => e.stopPropagation()}  // ✅ avoid accordion toggle
+                              onClick={(e) => e.stopPropagation()}
                               onBlur={() => {
-                                if (!cancelRef.current && editValue.trim() !== entry.promptSummary) {
-                                  dispatch(updatePromptSummary({
-                                    chatId: selectedChat.id,
-                                    entryIndex: index,
-                                    promptSummary: editValue.trim(),
-                                  }));
+                                if (
+                                  !cancelRef.current &&
+                                  editValue.trim() !== entry.promptSummary
+                                ) {
+                                  dispatch(
+                                    updatePromptSummary({
+                                      chatId: selectedChat.id,
+                                      entryIndex: index,
+                                      promptSummary: editValue.trim(),
+                                    })
+                                  );
                                 }
                                 cancelRef.current = false;
                                 setEditingIndex(null);
@@ -120,13 +127,12 @@ const ChatView: React.FC = () => {
                             <IconButton
                               size="small"
                               onMouseDown={(e) => {
-                                console.log('Close button clicked, cancelRef:', cancelRef.current);
-                                e.preventDefault();            // ❗ Prevent focus shift from TextField
-                                e.stopPropagation();           // Don't toggle accordion
-                                cancelRef.current = true;      // Mark cancel intention BEFORE blur
+                                e.preventDefault();
+                                e.stopPropagation();
+                                cancelRef.current = true;
                               }}
                               onClick={() => {
-                                setEditingIndex(null);         // Clean up after click
+                                setEditingIndex(null);
                               }}
                             >
                               <CloseIcon fontSize="small" />
@@ -138,6 +144,7 @@ const ChatView: React.FC = () => {
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'space-between',
+                              gap: 1,
                             }}
                           >
                             <Box sx={{ flexGrow: 1 }}>
@@ -152,6 +159,18 @@ const ChatView: React.FC = () => {
                               }}
                             >
                               <EditIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const confirmed = window.confirm('Delete this entry?');
+                                if (confirmed) {
+                                  dispatch(deleteChatEntry({ chatId: selectedChat.id, entryIndex: index }));
+                                }
+                              }}
+                            >
+                              <DeleteIcon fontSize="small" />
                             </IconButton>
                           </Box>
                         )}

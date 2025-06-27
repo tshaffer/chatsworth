@@ -47,6 +47,14 @@ export const updatePromptSummary = createAsyncThunk<
   }
 );
 
+export const deleteChatEntry = createAsyncThunk(
+  'projects/deleteChatEntry',
+  async ({ chatId, entryIndex }: { chatId: string; entryIndex: number }) => {
+    await axios.delete(`/api/v1/chat-entries/${chatId}/${entryIndex}`);
+    return { chatId, entryIndex };
+  }
+);
+
 const initialState: ProjectsState = {
   projectList: [],
   selectedChatId: null,
@@ -111,6 +119,14 @@ const projectsSlice = createSlice({
             chat.entries[entryIndex].promptSummary = promptSummary;
             break;
           }
+        }
+      })
+      .addCase(deleteChatEntry.fulfilled, (state, action) => {
+        const { chatId, entryIndex } = action.payload;
+        const project = state.projectList.find(p => p.chats.some(c => c.id === chatId));
+        const chat = project?.chats.find(c => c.id === chatId);
+        if (chat && entryIndex >= 0 && entryIndex < chat.entries.length) {
+          chat.entries.splice(entryIndex, 1);
         }
       });
   }
