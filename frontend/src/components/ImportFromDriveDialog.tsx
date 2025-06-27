@@ -53,7 +53,6 @@ const ImportFromDriveDialog = (props: ImportFromDriveDialogProps) => {
     try {
       const response = await props.onUploadFile(formData);
       const parsedMarkdown: ProjectsState = response.data;
-      debugger;
       props.onAppendParsedMarkdown(parsedMarkdown);
       handleClose();
     } catch (err) {

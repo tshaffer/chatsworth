@@ -81,12 +81,20 @@ const projectsSlice = createSlice({
     appendParsedMarkdown(state, action: PayloadAction<ProjectsState>) {
       const incomingProjects = action.payload.projectList;
 
-      // Avoid duplicates by ID
-      const existingIds = new Set(state.projectList.map(p => p.id));
-      const newProjects = incomingProjects.filter(p => !existingIds.has(p.id));
+      for (const incoming of incomingProjects) {
+        const existing = state.projectList.find(p => p.id === incoming.id);
 
-      state.projectList.push(...newProjects);
-    },
+        if (!existing) {
+          // New project — add it
+          state.projectList.push(incoming);
+        } else {
+          // Existing project — merge new chats
+          const existingChatIds = new Set(existing.chats.map(c => c.id));
+          const newChats = incoming.chats.filter(c => !existingChatIds.has(c.id));
+          existing.chats.push(...newChats);
+        }
+      }
+    }
   },
   extraReducers: (builder) => {
     builder
