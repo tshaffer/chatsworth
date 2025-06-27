@@ -8,7 +8,7 @@ export const fetchProjects = createAsyncThunk(
   'projects/fetchProjects',
   async () => {
     const response = await axios.get('/api/v1/projects');
-    return response.data.projects; // ✅ unwrap the data
+    return response.data.projectList; // ✅ unwrap the data
   }
 );
 

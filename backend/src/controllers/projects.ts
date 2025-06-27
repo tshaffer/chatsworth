@@ -1,12 +1,12 @@
 import { Request, Response } from 'express';
 
-import { ParsedMarkdown } from "../types";
+import { ProjectsState } from "../types";
 import { ProjectModel } from "../models";
 
 export const getProjects = async (request: Request, response: Response, next: any) => {
   try {
     const projects = await ProjectModel.find().lean(); // retrieve all from DB
-    const parsedMarkdown: ParsedMarkdown = { projects };
+    const parsedMarkdown: ProjectsState = { projectList: projects };
     response.json(parsedMarkdown);
   } catch (error) {
     console.error('Error fetching projects:', error);

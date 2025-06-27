@@ -1,4 +1,4 @@
-import { ChatEntry, MarkdownMetadata, ParsedMarkdown } from '../types';
+import { ChatEntry, MarkdownMetadata, ProjectsState } from '../types';
 import MarkdownIt from 'markdown-it';
 
 export function extractChatEntriesPreservingMarkdown(markdownText: string): ChatEntry[] {

@@ -4,8 +4,8 @@ import { Request, Response } from 'express';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import { extractChatEntriesPreservingMarkdown, extractMarkdownMetadata } from '../utilities/parseChatMarkdown';
-import { ParsedMarkdown, Project, Chat } from '../types';
-import { ProjectModel } from '../models/Project'; // import the Mongoose model
+import { ProjectsState, Project, Chat } from '../types';
+import { ProjectModel } from '../models/Project';
 
 export const markdownImporterEndpoint = async (request: Request, response: Response) => {
   const storage = multer.memoryStorage();
@@ -18,11 +18,19 @@ export const markdownImporterEndpoint = async (request: Request, response: Respo
     }
 
     const files = request.files as Express.Multer.File[];
+
+    if (!files || files.length === 0) {
+      return response.status(400).json({ error: 'No files uploaded' });
+    }
+
+    // Read project name from the form field
+    const projectNameFromForm = (request.body.projectName || '').trim();
+
+    // If multiple files are uploaded, we may want to suffix them or handle differently.
     const projectsMap: Map<string, Project> = new Map();
 
     for (const file of files) {
       const markdown = file.buffer.toString('utf-8');
-
       const metadata = extractMarkdownMetadata(markdown);
       const entries = extractChatEntriesPreservingMarkdown(markdown);
 
@@ -30,29 +38,30 @@ export const markdownImporterEndpoint = async (request: Request, response: Respo
         id: uuidv4(),
         title: metadata?.title || file.originalname,
         metadata,
-        entries
+        entries,
       };
 
-      // Use metadata.user or fallback to "Default Project"
+      // Determine the project name
       const projectName =
-        metadata?.user && metadata?.created
-          ? metadata.user + metadata.created
-          : 'Default Project ' + new Date().toISOString();
+        projectNameFromForm ||
+        (metadata?.user && metadata?.created
+          ? `${metadata.user}${metadata.created}`
+          : `Default Project ${new Date().toISOString()}`);
+
       if (!projectsMap.has(projectName)) {
         projectsMap.set(projectName, {
           id: uuidv4(),
           name: projectName,
-          chats: []
+          chats: [],
         });
       }
 
       projectsMap.get(projectName)!.chats.push(chat);
     }
 
-    // Convert Map to array of Project documents and insert
     const parsedProjects = Array.from(projectsMap.values());
 
-    // Save all projects (replace if same name exists)
+    // Replace any existing projects with the same name
     const saveResults = await Promise.all(parsedProjects.map(async (proj) => {
       await ProjectModel.findOneAndDelete({ name: proj.name });
       const newProj = new ProjectModel(proj);
@@ -60,8 +69,8 @@ export const markdownImporterEndpoint = async (request: Request, response: Respo
       return saved.toObject(); // Convert to plain JS object
     }));
 
-    const parsedMarkdown: ParsedMarkdown = {
-      projects: saveResults as Project[] // Safe now that they are plain objects
+    const parsedMarkdown: ProjectsState = {
+      projectList: saveResults as Project[],
     };
 
     return response.json(parsedMarkdown);
