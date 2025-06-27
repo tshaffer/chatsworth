@@ -1,5 +1,3 @@
-// markdownImporter.ts
-
 import { Request, Response } from 'express';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
@@ -23,11 +21,11 @@ export const markdownImporterEndpoint = async (request: Request, response: Respo
       return response.status(400).json({ error: 'No files uploaded' });
     }
 
-    // Read project name from the form field
-    const projectNameFromForm = (request.body.projectName || '').trim();
+    // Optional values from FormData
+    const projectId = request.body.projectId?.trim();
+    const projectNameFromForm = request.body.projectName?.trim();
 
-    // If multiple files are uploaded, we may want to suffix them or handle differently.
-    const projectsMap: Map<string, Project> = new Map();
+    const chatsFromFiles: Chat[] = [];
 
     for (const file of files) {
       const markdown = file.buffer.toString('utf-8');
@@ -41,38 +39,36 @@ export const markdownImporterEndpoint = async (request: Request, response: Respo
         entries,
       };
 
-      // Determine the project name
-      const projectName =
-        projectNameFromForm ||
-        (metadata?.user && metadata?.created
-          ? `${metadata.user}${metadata.created}`
-          : `Default Project ${new Date().toISOString()}`);
-
-      if (!projectsMap.has(projectName)) {
-        projectsMap.set(projectName, {
-          id: uuidv4(),
-          name: projectName,
-          chats: [],
-        });
-      }
-
-      projectsMap.get(projectName)!.chats.push(chat);
+      chatsFromFiles.push(chat);
     }
 
-    const parsedProjects = Array.from(projectsMap.values());
+    let savedProject;
 
-    // Replace any existing projects with the same name
-    const saveResults = await Promise.all(parsedProjects.map(async (proj) => {
-      await ProjectModel.findOneAndDelete({ name: proj.name });
-      const newProj = new ProjectModel(proj);
-      const saved = await newProj.save();
-      return saved.toObject(); // Convert to plain JS object
-    }));
+    // CASE 1: Append to existing project
+    if (projectId) {
+      const existingProject = await ProjectModel.findOne({ id: projectId });
+      if (!existingProject) {
+        return response.status(404).json({ error: 'Project not found' });
+      }
 
-    const parsedMarkdown: ProjectsState = {
-      projectList: saveResults as Project[],
+      existingProject.chats.push(...chatsFromFiles);
+      savedProject = await existingProject.save();
+
+    } else {
+      // CASE 2: Create a new project
+      const newProject: Project = {
+        id: uuidv4(),
+        name: projectNameFromForm || `Imported Project ${new Date().toISOString()}`,
+        chats: chatsFromFiles,
+      };
+
+      savedProject = await new ProjectModel(newProject).save();
+    }
+
+    const projectsState: ProjectsState = {
+      projectList: [savedProject.toObject()],
     };
 
-    return response.json(parsedMarkdown);
+    return response.json(projectsState);
   });
 };

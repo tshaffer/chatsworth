@@ -5,11 +5,13 @@ import { bindActionCreators } from 'redux';
 import DialogTitle from '@mui/material/DialogTitle';
 import Dialog from '@mui/material/Dialog';
 import { Button, DialogActions, DialogContent, Alert, TextField } from '@mui/material';
+import { Select, MenuItem, InputLabel, FormControl } from '@mui/material';
 import { ProjectsState } from '../types';
 import { uploadFile } from '../controllers';
 
 export interface ImportFromDriveDialogPropsFromParent {
   open: boolean;
+  existingProjects: { id: string; name: string }[];
   onAppendParsedMarkdown: (parsedMarkdown: ProjectsState) => void;
   onClose: () => void;
 }
@@ -21,6 +23,7 @@ export interface ImportFromDriveDialogProps extends ImportFromDriveDialogPropsFr
 const ImportFromDriveDialog = (props: ImportFromDriveDialogProps) => {
   const [selectedFiles, setSelectedFiles] = React.useState<FileList | null>(null);
   const [projectName, setProjectName] = React.useState('');
+  const [selectedProjectId, setSelectedProjectId] = React.useState<string>('');
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
   const handleClose = () => {
@@ -44,10 +47,13 @@ const ImportFromDriveDialog = (props: ImportFromDriveDialogProps) => {
       formData.append('files', file);
     });
     formData.append('projectName', projectName);
-
+    if (selectedProjectId) {
+      formData.append('projectId', selectedProjectId);
+    }
     try {
       const response = await props.onUploadFile(formData);
       const parsedMarkdown: ProjectsState = response.data;
+      debugger;
       props.onAppendParsedMarkdown(parsedMarkdown);
       handleClose();
     } catch (err) {
@@ -69,6 +75,22 @@ const ImportFromDriveDialog = (props: ImportFromDriveDialogProps) => {
             name="file"
             style={{ marginTop: '1rem', display: 'block' }}
           />
+          <FormControl fullWidth margin="normal">
+            <InputLabel id="project-select-label">Add To Project</InputLabel>
+            <Select
+              labelId="project-select-label"
+              value={selectedProjectId}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
+              label="Add To Project"
+            >
+              <MenuItem value="">(Create New Project)</MenuItem>
+              {props.existingProjects.map((proj) => (
+                <MenuItem key={proj.id} value={proj.id}>
+                  {proj.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
           <TextField
             fullWidth
             margin="normal"

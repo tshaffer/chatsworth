@@ -182,6 +182,7 @@ const ProjectList: React.FC = () => {
       <ImportFromDriveDialog
         open={importDialogOpen}
         onClose={() => setImportDialogOpen(false)}
+        existingProjects={projects.map((p) => ({ id: p.id, name: p.name }))}
         onAppendParsedMarkdown={(parsed: ProjectsState) => {
           dispatch(appendParsedMarkdown(parsed));
         }}
