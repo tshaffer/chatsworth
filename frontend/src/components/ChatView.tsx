@@ -22,6 +22,7 @@ import { useDispatch } from 'react-redux';
 import { AppDispatch } from '../redux/store';
 import { updatePromptSummary } from '../redux/projectsSlice';
 import { deleteChatEntry } from '../redux/projectsSlice';
+import DownloadIcon from '@mui/icons-material/Download';
 
 
 const ChatView: React.FC = () => {
@@ -63,6 +64,39 @@ const ChatView: React.FC = () => {
       <Typography variant="h5" gutterBottom>
         {selectedChat.title}
       </Typography>
+
+      import DownloadIcon from '@mui/icons-material/Download';
+
+      // Inside the component, right before rendering the chat entries:
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+        <IconButton
+          size="small"
+          onClick={async () => {
+            if (!selectedChat?.id) return;
+
+            try {
+              const response = await fetch(`/api/v1/chats/${selectedChat.id}/export`);
+              if (!response.ok) {
+                throw new Error('Failed to export chat');
+              }
+
+              const blob = await response.blob();
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `${selectedChat.title || 'chat'}.md`;
+              a.click();
+              window.URL.revokeObjectURL(url);
+            } catch (err) {
+              console.error('Export failed:', err);
+              alert('Failed to export chat. Please try again.');
+            }
+          }}
+          title="Export Chat as Markdown"
+        >
+          <DownloadIcon />
+        </IconButton>
+      </Box>
 
       {selectedChat.entries.length === 0 ? (
         <Typography variant="body2" color="text.secondary">

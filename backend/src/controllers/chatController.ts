@@ -75,3 +75,37 @@ export const deleteChat = async (
 
   res.json({ message: 'Chat deleted' });
 };
+
+export const exportChat = async (
+  req: Request<{ chatId: string }>,
+  res: Response
+): Promise<void> => {
+
+  const { chatId } = req.params;
+  const project: Project = await ProjectModel.findOne({ 'chats.id': chatId }).lean();
+
+  if (!project) {
+    res.status(404).send('Chat not found');
+  }
+
+  const chat: Chat = project.chats.find(c => c.id === chatId);
+  if (!chat) {
+    res.status(404).send('Chat not found');
+  }
+
+  let markdown = `# ${chat.title}\n\n`;
+  if (chat.metadata) {
+    markdown += `**Created:** ${chat.metadata.created || ''}\n`;
+    markdown += `**Updated:** ${chat.metadata.updated || ''}\n\n`;
+  }
+
+  chat.entries.forEach(entry => {
+    markdown += `## Prompt:\n${entry.originalPrompt}\n\n`;
+    markdown += `**Summary:** ${entry.promptSummary}\n\n`;
+    markdown += `**Response:**\n${entry.response}\n\n`;
+  });
+
+  res.setHeader('Content-Disposition', `attachment; filename="${chat.title || 'Chat'}.md"`);
+  res.setHeader('Content-Type', 'text/markdown');
+  res.send(markdown);
+};
