@@ -84,7 +84,11 @@ const ChatView: React.FC = () => {
               const url = window.URL.createObjectURL(blob);
               const a = document.createElement('a');
               a.href = url;
-              a.download = `${selectedChat.title || 'chat'}.md`;
+              let filename = selectedChat.title || 'chat';
+              if (!filename.endsWith('.md')) {
+                filename += '.md';
+              }
+              a.download = filename;
               a.click();
               window.URL.revokeObjectURL(url);
             } catch (err) {
