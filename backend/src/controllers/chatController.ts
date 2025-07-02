@@ -59,21 +59,29 @@ export const renameOrMoveChat = async (
   res.json({ message: 'Chat updated' });
 };
 
-export const deleteChat = async (
-  req: Request<{ chatId: string }>,
-  res: Response
-): Promise<void> => {
-  const { chatId } = req.params;
-  const project = await ProjectModel.findOne({ 'chats.id': chatId });
-  if (!project) {
-    res.status(404).json({ error: 'Chat not found' });
-    return;
+export const deleteChat = async (req: Request, res: Response) => {
+
+  const { projectId, chatId } = req.params;
+
+  try {
+    const project = await ProjectModel.findOne({ id: projectId });
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const chatIndex = (project.chats as Chat[]).findIndex((chat: Chat) => chat.id === chatId);
+    if (chatIndex === -1) {
+      return res.status(404).json({ error: 'Chat not found' });
+    }
+
+    project.chats.splice(chatIndex, 1);
+    await project.save();
+
+    res.status(200).json({ message: 'Chat deleted' });
+  } catch (error) {
+    console.error('Error deleting chat:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
-
-  project.chats = project.chats.filter((chat: Chat) => chat.id !== chatId);
-  await project.save();
-
-  res.json({ message: 'Chat deleted' });
 };
 
 export const exportChat = async (

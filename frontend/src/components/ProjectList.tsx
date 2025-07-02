@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '../redux/store';
 import ImportFromDriveDialog from './ImportFromDriveDialog';
 import { uploadFile } from '../controllers';
-import { appendParsedMarkdown } from '../redux/projectsSlice'; // Make sure this exists
+import { appendParsedMarkdown, deleteChat } from '../redux/projectsSlice'; // Make sure this exists
 import { ProjectsState } from '../types';
 
 import React, { useState } from 'react';
@@ -25,6 +25,7 @@ import {
   Edit as EditIcon,
   MoreVert as MoreVertIcon,
 } from '@mui/icons-material';
+import DeleteIcon from '@mui/icons-material/Delete';
 
 import { renameChat, renameProject, setSelectedChatId } from '../redux/projectsSlice';
 
@@ -136,16 +137,29 @@ const ProjectList: React.FC = () => {
                       }
                     }}
                     secondaryAction={
-                      <IconButton
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation(); // prevent triggering selection when clicking ✎
-                          setEditingChatId(chat.id);
-                          setEditChatTitle(chat.title);
-                        }}
-                      >
-                        <EditIcon fontSize="small" />
-                      </IconButton>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <IconButton
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation(); // prevent triggering selection when clicking ✎
+                            setEditingChatId(chat.id);
+                            setEditChatTitle(chat.title);
+                          }}
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation(); // prevent triggering selection when clicking 🗑️
+                            if (confirm(`Delete chat "${chat.title}"?`)) {
+                              dispatch(deleteChat({ projectId: project.id, chatId: chat.id }));
+                            }
+                          }}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
                     }
                   >
                     {editingChatId === chat.id ? (

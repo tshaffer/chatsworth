@@ -26,7 +26,7 @@ export const createRoutes = (app: express.Application) => {
 
   app.get('/api/v1/chats/:chatId/export', exportChat);
   app.patch('/api/v1/chats/:chatId', renameOrMoveChat);
-  app.delete('/api/v1/chats/:chatId', deleteChat);
+  app.delete('/api/v1/projects/:projectId/chats/:chatId', deleteChat);
 
   app.patch('/api/v1/chat-entries/:chatId/:entryIndex', updateChatEntry);
   app.delete('/api/v1/chat-entries/:chatId/:entryIndex', deleteChatEntry);

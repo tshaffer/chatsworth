@@ -34,6 +34,19 @@ export const renameChat = createAsyncThunk<
   }
 );
 
+export const deleteChat = createAsyncThunk(
+  'projects/deleteChat',
+  async ({ projectId, chatId }: { projectId: string, chatId: string }, thunkAPI) => {
+    try {
+      await axios.delete(`/api/v1/projects/${projectId}/chats/${chatId}`);
+      return { projectId, chatId };
+    } catch (error) {
+      console.error('Failed to delete chat:', error);
+      return thunkAPI.rejectWithValue('Failed to delete chat');
+    }
+  }
+);
+
 export const updatePromptSummary = createAsyncThunk<
   { chatId: string; entryIndex: number; promptSummary: string },
   { chatId: string; entryIndex: number; promptSummary: string }
@@ -94,6 +107,13 @@ const projectsSlice = createSlice({
           existing.chats.push(...newChats);
         }
       }
+    },
+    deleteChatFromProject: (state, action: PayloadAction<{ projectId: string, chatId: string }>) => {
+      const { projectId, chatId } = action.payload;
+      const project = state.projectList.find(p => p.id === projectId);
+      if (project) {
+        project.chats = project.chats.filter(chat => chat.id !== chatId);
+      }
     }
   },
   extraReducers: (builder) => {
@@ -127,6 +147,13 @@ const projectsSlice = createSlice({
             chat.entries[entryIndex].promptSummary = promptSummary;
             break;
           }
+        }
+      })
+      .addCase(deleteChat.fulfilled, (state, action) => {
+        const { projectId, chatId } = action.payload;
+        const project = state.projectList.find(p => p.id === projectId);
+        if (project) {
+          project.chats = project.chats.filter(chat => chat.id !== chatId);
         }
       })
       .addCase(deleteChatEntry.fulfilled, (state, action) => {
