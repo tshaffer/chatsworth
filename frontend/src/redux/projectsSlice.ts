@@ -12,6 +12,18 @@ export const fetchProjects = createAsyncThunk(
   }
 );
 
+export const createProject = createAsyncThunk(
+  'projects/createProject',
+  async (name: string, thunkAPI) => {
+    try {
+      const response = await axios.post('/api/v1/projects', { name });
+      return response.data;
+    } catch (error: any) {
+      return thunkAPI.rejectWithValue(error.response?.data?.error || 'Failed to create project');
+    }
+  }
+);
+
 export const renameProject = createAsyncThunk<
   { projectId: string; name: string },
   { projectId: string; name: string }
@@ -120,6 +132,9 @@ const projectsSlice = createSlice({
     builder
       .addCase(fetchProjects.fulfilled, (state, action) => {
         state.projectList = action.payload;
+      })
+      .addCase(createProject.fulfilled, (state, action) => {
+        state.projectList.push(action.payload);
       })
       .addCase(renameProject.fulfilled, (state, action) => {
         const { projectId, name } = action.payload;

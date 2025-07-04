@@ -28,6 +28,7 @@ import {
 import DeleteIcon from '@mui/icons-material/Delete';
 
 import { renameChat, renameProject, setSelectedChatId } from '../redux/projectsSlice';
+import CreateProjectDialog from './NewProjectDialog';
 
 const ProjectList: React.FC = () => {
 
@@ -44,6 +45,7 @@ const ProjectList: React.FC = () => {
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editChatTitle, setEditChatTitle] = useState('');
 
+  const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   const toggleProject = (projectId: string) => {
@@ -56,7 +58,12 @@ const ProjectList: React.FC = () => {
 
   return (
     <Box p={2}>
-      <Button variant="contained" fullWidth sx={{ mb: 1 }}>
+      <Button
+        variant="contained"
+        fullWidth
+        sx={{ mb: 1 }}
+        onClick={() => setNewProjectDialogOpen(true)}
+      >
         + New Project
       </Button>
       <Button
@@ -201,6 +208,7 @@ const ProjectList: React.FC = () => {
           dispatch(appendParsedMarkdown(parsed));
         }}
       />
+      <CreateProjectDialog open={newProjectDialogOpen} onClose={() => setNewProjectDialogOpen(false)} />
     </Box>
   );
 };
