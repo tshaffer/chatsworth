@@ -100,6 +100,51 @@ const projectsSlice = createSlice({
       const newProjects = action.payload.filter((p) => !existingIds.has(p.id));
       state.projectList.push(...newProjects);
     },
+    reorderChats: (
+      state,
+      action: PayloadAction<{
+        projectId: string;
+        direction: 'up' | 'down';
+        chatId: string;
+      }>
+    ) => {
+      const { projectId, direction, chatId } = action.payload;
+      const project = state.projectList.find((p) => p.id === projectId);
+      if (!project) return;
+
+      const index = project.chats.findIndex((chat) => chat.id === chatId);
+      if (index === -1) return;
+
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= project.chats.length) return;
+
+      const temp = project.chats[index];
+      project.chats[index] = project.chats[targetIndex];
+      project.chats[targetIndex] = temp;
+    },
+    reorderChatEntries: (
+      state,
+      action: PayloadAction<{
+        chatId: string;
+        entryIndex: number;
+        direction: 'up' | 'down';
+      }>
+    ) => {
+      const { chatId, entryIndex, direction } = action.payload;
+
+      for (const project of state.projectList) {
+        const chat = project.chats.find(c => c.id === chatId);
+        if (!chat) continue;
+
+        const newIndex = direction === 'up' ? entryIndex - 1 : entryIndex + 1;
+        if (newIndex < 0 || newIndex >= chat.entries.length) return;
+
+        const temp = chat.entries[entryIndex];
+        chat.entries[entryIndex] = chat.entries[newIndex];
+        chat.entries[newIndex] = temp;
+        break;
+      }
+    },
     setSelectedChatId(state, action: PayloadAction<string | null>) {
       state.selectedChatId = action.payload;
     },
@@ -182,5 +227,5 @@ const projectsSlice = createSlice({
   }
 });
 
-export const { setProjects, clearProjects, appendProjects, setSelectedChatId, appendParsedMarkdown } = projectsSlice.actions;
+export const { setProjects, clearProjects, appendProjects, reorderChats, reorderChatEntries, setSelectedChatId, appendParsedMarkdown } = projectsSlice.actions;
 export default projectsSlice.reducer;

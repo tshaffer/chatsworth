@@ -3,8 +3,11 @@ import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '../redux/store';
 import ImportFromDriveDialog from './ImportFromDriveDialog';
 import { uploadFile } from '../controllers';
-import { appendParsedMarkdown, deleteChat } from '../redux/projectsSlice'; // Make sure this exists
+import { appendParsedMarkdown, deleteChat, reorderChats } from '../redux/projectsSlice'; // Make sure this exists
 import { ProjectsState } from '../types';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import ListItemSecondaryAction from '@mui/material/ListItemSecondaryAction';
 
 import React, { useState } from 'react';
 import {
@@ -130,7 +133,9 @@ const ProjectList: React.FC = () => {
 
             <Collapse in={expandedProjectIds.has(project.id)} timeout="auto" unmountOnExit>
               <List component="div" disablePadding>
-                {project.chats.map((chat) => (
+                {project.chats.map((chat, index) => (
+
+                  // Inside your .map(chat, index => ...) loop:
                   <ListItem
                     key={chat.id}
                     sx={{
@@ -144,7 +149,36 @@ const ProjectList: React.FC = () => {
                       }
                     }}
                     secondaryAction={
-                      <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                        {/* Move Up */}
+                        <IconButton
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            dispatch(
+                              reorderChats({ projectId: project.id, direction: 'up', chatId: chat.id })
+                            );
+                          }}
+                          disabled={index === 0}
+                        >
+                          <ArrowUpwardIcon fontSize="small" />
+                        </IconButton>
+
+                        {/* Move Down */}
+                        <IconButton
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            dispatch(
+                              reorderChats({ projectId: project.id, direction: 'down', chatId: chat.id })
+                            );
+                          }}
+                          disabled={index === project.chats.length - 1}
+                        >
+                          <ArrowDownwardIcon fontSize="small" />
+                        </IconButton>
+
+                        {/* Edit */}
                         <IconButton
                           size="small"
                           onClick={(e) => {
@@ -155,6 +189,8 @@ const ProjectList: React.FC = () => {
                         >
                           <EditIcon fontSize="small" />
                         </IconButton>
+
+                        {/* Delete */}
                         <IconButton
                           size="small"
                           onClick={(e) => {

@@ -2,6 +2,7 @@
 import { Request, Response } from 'express';
 import { ProjectModel } from '../models/Project';
 import { v4 as uuidv4 } from 'uuid';
+import { Chat } from '../types';
 
 // PATCH /api/projects/:projectId
 export const renameProject = async (req: Request, res: Response) => {
@@ -40,4 +41,23 @@ export const createProject = async (req: Request, res: Response) => {
 
   await newProject.save();
   res.status(201).json(newProject);
+};
+
+export const reorderChats = async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  const { newOrder } = req.body; // array of chat IDs
+
+  const project = await ProjectModel.findOne({ id: projectId });
+  if (!project) {
+    return res.status(404).json({ error: 'Project not found' });
+  }
+
+  // Reorder based on new chat ID order
+  const chatMap = new Map(
+    project.chats.map((c: Chat) => [c.id, c])
+  );
+  project.chats = newOrder.map((id: string) => chatMap.get(id)).filter(Boolean);
+
+  await project.save();
+  res.json({ success: true });
 };

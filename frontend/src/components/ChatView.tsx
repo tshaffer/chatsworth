@@ -20,9 +20,12 @@ import CloseIcon from '@mui/icons-material/Close';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useDispatch } from 'react-redux';
 import { AppDispatch } from '../redux/store';
-import { updatePromptSummary } from '../redux/projectsSlice';
+import { reorderChatEntries, updatePromptSummary } from '../redux/projectsSlice';
 import { deleteChatEntry } from '../redux/projectsSlice';
 import DownloadIcon from '@mui/icons-material/Download';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import ListItemSecondaryAction from '@mui/material/ListItemSecondaryAction';
 
 
 const ChatView: React.FC = () => {
@@ -188,6 +191,44 @@ const ChatView: React.FC = () => {
                             <Box sx={{ flexGrow: 1 }}>
                               <ReactMarkdown>{entry.promptSummary}</ReactMarkdown>
                             </Box>
+
+                            {/* Move Up */}
+                            <IconButton
+                              size="small"
+                              disabled={index === 0}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                dispatch(
+                                  reorderChatEntries({
+                                    chatId: selectedChat.id,
+                                    direction: 'up',
+                                    entryIndex: index,
+                                  })
+                                );
+                              }}
+                            >
+                              <ArrowUpwardIcon fontSize="small" />
+                            </IconButton>
+
+                            {/* Move Down */}
+                            <IconButton
+                              size="small"
+                              disabled={index === selectedChat.entries.length - 1}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                dispatch(
+                                  reorderChatEntries({
+                                    chatId: selectedChat.id,
+                                    direction: 'down',
+                                    entryIndex: index,
+                                  })
+                                );
+                              }}
+                            >
+                              <ArrowDownwardIcon fontSize="small" />
+                            </IconButton>
+
+                            {/* Edit */}
                             <IconButton
                               size="small"
                               onClick={(e) => {
@@ -198,6 +239,8 @@ const ChatView: React.FC = () => {
                             >
                               <EditIcon fontSize="small" />
                             </IconButton>
+
+                            {/* Delete */}
                             <IconButton
                               size="small"
                               onClick={(e) => {
