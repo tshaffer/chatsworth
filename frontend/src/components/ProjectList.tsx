@@ -2,12 +2,10 @@
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '../redux/store';
 import ImportFromDriveDialog from './ImportFromDriveDialog';
-import { uploadFile } from '../controllers';
-import { appendParsedMarkdown, deleteChat, reorderChats } from '../redux/projectsSlice'; // Make sure this exists
+import { appendParsedMarkdown, deleteChat, persistReorderedChats } from '../redux/projectsSlice'; // Make sure this exists
 import { ProjectsState } from '../types';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import ListItemSecondaryAction from '@mui/material/ListItemSecondaryAction';
 
 import React, { useState } from 'react';
 import {
@@ -155,9 +153,13 @@ const ProjectList: React.FC = () => {
                           size="small"
                           onClick={(e) => {
                             e.stopPropagation();
-                            dispatch(
-                              reorderChats({ projectId: project.id, direction: 'up', chatId: chat.id })
-                            );
+                            const newOrder = [...project.chats];
+                            const index = newOrder.findIndex(c => c.id === chat.id);
+                            const targetIndex = index - 1;
+                            if (targetIndex >= 0 && targetIndex < newOrder.length) {
+                              [newOrder[index], newOrder[targetIndex]] = [newOrder[targetIndex], newOrder[index]];
+                              dispatch(persistReorderedChats({ projectId: project.id, newOrder: newOrder.map(c => c.id) }));
+                            }
                           }}
                           disabled={index === 0}
                         >
@@ -169,9 +171,13 @@ const ProjectList: React.FC = () => {
                           size="small"
                           onClick={(e) => {
                             e.stopPropagation();
-                            dispatch(
-                              reorderChats({ projectId: project.id, direction: 'down', chatId: chat.id })
-                            );
+                            const newOrder = [...project.chats];
+                            const index = newOrder.findIndex(c => c.id === chat.id);
+                            const targetIndex = index + 1;
+                            if (targetIndex >= 0 && targetIndex < newOrder.length) {
+                              [newOrder[index], newOrder[targetIndex]] = [newOrder[targetIndex], newOrder[index]];
+                              dispatch(persistReorderedChats({ projectId: project.id, newOrder: newOrder.map(c => c.id) }));
+                            }
                           }}
                           disabled={index === project.chats.length - 1}
                         >

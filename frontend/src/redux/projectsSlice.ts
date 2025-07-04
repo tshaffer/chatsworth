@@ -35,6 +35,15 @@ export const renameProject = createAsyncThunk<
   }
 );
 
+// In projectsSlice.ts
+export const persistReorderedChats = createAsyncThunk<
+  { projectId: string; newOrder: string[] },
+  { projectId: string; newOrder: string[] }
+>('projects/persistReorderedChats', async ({ projectId, newOrder }) => {
+  await axios.post(`/api/v1/projects/${projectId}/reorderChats`, { newOrder });
+  return { projectId, newOrder };
+});
+
 export const renameChat = createAsyncThunk<
   { chatId: string; title: string },
   { chatId: string; title: string }
@@ -99,28 +108,6 @@ const projectsSlice = createSlice({
       const existingIds = new Set(state.projectList.map((p) => p.id));
       const newProjects = action.payload.filter((p) => !existingIds.has(p.id));
       state.projectList.push(...newProjects);
-    },
-    reorderChats: (
-      state,
-      action: PayloadAction<{
-        projectId: string;
-        direction: 'up' | 'down';
-        chatId: string;
-      }>
-    ) => {
-      const { projectId, direction, chatId } = action.payload;
-      const project = state.projectList.find((p) => p.id === projectId);
-      if (!project) return;
-
-      const index = project.chats.findIndex((chat) => chat.id === chatId);
-      if (index === -1) return;
-
-      const targetIndex = direction === 'up' ? index - 1 : index + 1;
-      if (targetIndex < 0 || targetIndex >= project.chats.length) return;
-
-      const temp = project.chats[index];
-      project.chats[index] = project.chats[targetIndex];
-      project.chats[targetIndex] = temp;
     },
     reorderChatEntries: (
       state,
@@ -223,9 +210,17 @@ const projectsSlice = createSlice({
         if (chat && entryIndex >= 0 && entryIndex < chat.entries.length) {
           chat.entries.splice(entryIndex, 1);
         }
+      })
+      .addCase(persistReorderedChats.fulfilled, (state, action) => {
+        const { projectId, newOrder } = action.payload;
+        const project = state.projectList.find(p => p.id === projectId);
+        if (!project) return;
+
+        const chatMap = new Map(project.chats.map(chat => [chat.id, chat]));
+        project.chats = newOrder.map(id => chatMap.get(id)).filter(Boolean) as typeof project.chats;
       });
   }
 });
 
-export const { setProjects, clearProjects, appendProjects, reorderChats, reorderChatEntries, setSelectedChatId, appendParsedMarkdown } = projectsSlice.actions;
+export const { setProjects, clearProjects, appendProjects, reorderChatEntries, setSelectedChatId, appendParsedMarkdown } = projectsSlice.actions;
 export default projectsSlice.reducer;
