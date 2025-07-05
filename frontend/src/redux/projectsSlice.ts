@@ -68,6 +68,14 @@ export const deleteChat = createAsyncThunk(
   }
 );
 
+export const persistReorderedChatEntries = createAsyncThunk<
+  { chatId: string; newOrder: number[] },
+  { chatId: string; newOrder: number[] }
+>('projects/persistReorderedChatEntries', async ({ chatId, newOrder }) => {
+  await axios.post(`/api/v1/chats/${chatId}/reorderEntries`, { newOrder });
+  return { chatId, newOrder };
+});
+
 export const updatePromptSummary = createAsyncThunk<
   { chatId: string; entryIndex: number; promptSummary: string },
   { chatId: string; entryIndex: number; promptSummary: string }
@@ -108,29 +116,6 @@ const projectsSlice = createSlice({
       const existingIds = new Set(state.projectList.map((p) => p.id));
       const newProjects = action.payload.filter((p) => !existingIds.has(p.id));
       state.projectList.push(...newProjects);
-    },
-    reorderChatEntries: (
-      state,
-      action: PayloadAction<{
-        chatId: string;
-        entryIndex: number;
-        direction: 'up' | 'down';
-      }>
-    ) => {
-      const { chatId, entryIndex, direction } = action.payload;
-
-      for (const project of state.projectList) {
-        const chat = project.chats.find(c => c.id === chatId);
-        if (!chat) continue;
-
-        const newIndex = direction === 'up' ? entryIndex - 1 : entryIndex + 1;
-        if (newIndex < 0 || newIndex >= chat.entries.length) return;
-
-        const temp = chat.entries[entryIndex];
-        chat.entries[entryIndex] = chat.entries[newIndex];
-        chat.entries[newIndex] = temp;
-        break;
-      }
     },
     setSelectedChatId(state, action: PayloadAction<string | null>) {
       state.selectedChatId = action.payload;
@@ -218,9 +203,21 @@ const projectsSlice = createSlice({
 
         const chatMap = new Map(project.chats.map(chat => [chat.id, chat]));
         project.chats = newOrder.map(id => chatMap.get(id)).filter(Boolean) as typeof project.chats;
+      })
+      .addCase(persistReorderedChatEntries.fulfilled, (state, action) => {
+        const { chatId, newOrder } = action.payload;
+
+        for (const project of state.projectList) {
+          const chat = project.chats.find(c => c.id === chatId);
+          if (!chat) continue;
+
+          const currentEntries = chat.entries;
+          chat.entries = newOrder.map(i => currentEntries[i]).filter(Boolean);
+          break;
+        }
       });
   }
 });
 
-export const { setProjects, clearProjects, appendProjects, reorderChatEntries, setSelectedChatId, appendParsedMarkdown } = projectsSlice.actions;
+export const { setProjects, clearProjects, appendProjects, setSelectedChatId, appendParsedMarkdown } = projectsSlice.actions;
 export default projectsSlice.reducer;

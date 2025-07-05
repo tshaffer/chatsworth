@@ -77,3 +77,24 @@ export const deleteChatEntry = async (
 
   res.json({ message: 'ChatEntry deleted' });
 };
+
+export const reorderChatEntries = async (req: Request, res: Response) => {
+  const { chatId } = req.params;
+  const { newOrder } = req.body; // array of entry indices
+
+  const project: Document & ProjectType | null = await ProjectModel.findOne({ 'chats.id': chatId });
+  if (!project) {
+    return res.status(404).json({ error: 'Chat not found' });
+  }
+
+  const chat = project.chats.find(c => c.id === chatId);
+  if (!chat) {
+    return res.status(404).json({ error: 'Chat not found in project' });
+  }
+
+  const currentEntries = chat.entries;
+  chat.entries = newOrder.map((i: number) => currentEntries[i]).filter(Boolean);
+
+  await project.save();
+  res.json({ success: true });
+};

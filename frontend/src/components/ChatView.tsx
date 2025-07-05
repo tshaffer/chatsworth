@@ -20,7 +20,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useDispatch } from 'react-redux';
 import { AppDispatch } from '../redux/store';
-import { reorderChatEntries, updatePromptSummary } from '../redux/projectsSlice';
+import { persistReorderedChatEntries, updatePromptSummary } from '../redux/projectsSlice';
 import { deleteChatEntry } from '../redux/projectsSlice';
 import DownloadIcon from '@mui/icons-material/Download';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -198,13 +198,9 @@ const ChatView: React.FC = () => {
                               disabled={index === 0}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                dispatch(
-                                  reorderChatEntries({
-                                    chatId: selectedChat.id,
-                                    direction: 'up',
-                                    entryIndex: index,
-                                  })
-                                );
+                                const newOrder = selectedChat.entries.map((_, i) => i);
+                                [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
+                                dispatch(persistReorderedChatEntries({ chatId: selectedChat.id, newOrder }));
                               }}
                             >
                               <ArrowUpwardIcon fontSize="small" />
@@ -216,13 +212,9 @@ const ChatView: React.FC = () => {
                               disabled={index === selectedChat.entries.length - 1}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                dispatch(
-                                  reorderChatEntries({
-                                    chatId: selectedChat.id,
-                                    direction: 'down',
-                                    entryIndex: index,
-                                  })
-                                );
+                                const newOrder = selectedChat.entries.map((_, i) => i);
+                                [newOrder[index + 1], newOrder[index]] = [newOrder[index], newOrder[index + 1]];
+                                dispatch(persistReorderedChatEntries({ chatId: selectedChat.id, newOrder }));
                               }}
                             >
                               <ArrowDownwardIcon fontSize="small" />

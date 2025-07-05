@@ -9,6 +9,7 @@ import {
   markdownImporterEndpoint,
   renameOrMoveChat,
   renameProject,
+  reorderChatEntries,
   reorderChats,
   updateChatEntry,
 } from '../controllers';
@@ -25,11 +26,12 @@ export const createRoutes = (app: express.Application) => {
   app.post('/api/v1/projects/:projectId/reorderChats', reorderChats);
   app.patch('/api/v1/projects/:projectId', renameProject);
   app.delete('/api/v1/projects/:projectId', deleteProject);
-  
+
   app.get('/api/v1/chats/:chatId/export', exportChat);
   app.patch('/api/v1/chats/:chatId', renameOrMoveChat);
   app.delete('/api/v1/projects/:projectId/chats/:chatId', deleteChat);
-
+  app.post('/api/v1/chats/:chatId/reorderEntries', reorderChatEntries);
+  
   app.patch('/api/v1/chat-entries/:chatId/:entryIndex', updateChatEntry);
   app.delete('/api/v1/chat-entries/:chatId/:entryIndex', deleteChatEntry);
 
