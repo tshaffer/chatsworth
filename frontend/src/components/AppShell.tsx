@@ -9,7 +9,7 @@ import ChatView from './ChatView';
 import { fetchProjects } from '../redux/projectsSlice';
 import { AppDispatch } from '../redux/store';
 
-const drawerWidth = 280;
+const drawerWidth = 400;
 
 const AppShell: React.FC = () => {
 
@@ -51,7 +51,6 @@ const AppShell: React.FC = () => {
         sx={{
           flexGrow: 1,
           p: 3,
-          marginLeft: `${drawerWidth}px`,
           marginTop: '64px',
         }}
       >

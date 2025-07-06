@@ -147,7 +147,7 @@ const ProjectList: React.FC = () => {
                       }
                     }}
                     secondaryAction={
-                      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         {/* Move Up */}
                         <IconButton
                           size="small"
