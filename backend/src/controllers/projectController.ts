@@ -61,3 +61,36 @@ export const reorderChats = async (req: Request, res: Response) => {
   await project.save();
   res.json({ success: true });
 };
+
+// controllers/projectController.ts
+export const moveChatToProject = async (req: Request, res: Response) => {
+  const { chatId, sourceProjectId, targetProjectId } = req.body;
+
+  try {
+    const sourceProject = await ProjectModel.findOne({ id: sourceProjectId });
+    const targetProject = await ProjectModel.findOne({ id: targetProjectId });
+
+    if (!sourceProject || !targetProject) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const chatIndex = sourceProject.chats.findIndex(
+      (c: Chat) => c.id === chatId
+    );
+
+    if (chatIndex === -1) {
+      return res.status(404).json({ error: 'Chat not found in source project' });
+    }
+
+    const [chatToMove] = sourceProject.chats.splice(chatIndex, 1);
+    targetProject.chats.push(chatToMove);
+
+    await sourceProject.save();
+    await targetProject.save();
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to move chat' });
+  }
+};

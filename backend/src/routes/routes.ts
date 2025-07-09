@@ -7,6 +7,7 @@ import {
   exportChat,
   getVersion,
   markdownImporterEndpoint,
+  moveChatToProject,
   renameOrMoveChat,
   renameProject,
   reorderChatEntries,
@@ -31,8 +32,11 @@ export const createRoutes = (app: express.Application) => {
   app.patch('/api/v1/chats/:chatId', renameOrMoveChat);
   app.delete('/api/v1/projects/:projectId/chats/:chatId', deleteChat);
   app.post('/api/v1/chats/:chatId/reorderEntries', reorderChatEntries);
-  
+
   app.patch('/api/v1/chat-entries/:chatId/:entryIndex', updateChatEntry);
   app.delete('/api/v1/chat-entries/:chatId/:entryIndex', deleteChatEntry);
+
+  // routes/projectRoutes.ts
+  app.post('/api/v1/projects/moveChat', moveChatToProject);
 
 };

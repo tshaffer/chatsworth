@@ -97,6 +97,19 @@ export const deleteChatEntry = createAsyncThunk(
   }
 );
 
+// redux/projectsThunks.ts
+export const moveChatToProject = createAsyncThunk<
+  { chatId: string; sourceProjectId: string; targetProjectId: string },
+  { chatId: string; sourceProjectId: string; targetProjectId: string }
+>('projects/moveChatToProject', async ({ chatId, sourceProjectId, targetProjectId }) => {
+  await axios.post('/api/v1/projects/moveChat', {
+    chatId,
+    sourceProjectId,
+    targetProjectId,
+  });
+  return { chatId, sourceProjectId, targetProjectId };
+});
+
 const initialState: ProjectsState = {
   projectList: [],
   selectedChatId: null,
@@ -214,6 +227,23 @@ const projectsSlice = createSlice({
           const currentEntries = chat.entries;
           chat.entries = newOrder.map(i => currentEntries[i]).filter(Boolean);
           break;
+        }
+      })
+      .addCase(moveChatToProject.fulfilled, (state, action) => {
+        const { chatId, sourceProjectId, targetProjectId } = action.payload;
+
+        const sourceProject = state.projectList.find(p => p.id === sourceProjectId);
+        const targetProject = state.projectList.find(p => p.id === targetProjectId);
+
+        if (sourceProject && targetProject) {
+          const chatIndex = sourceProject.chats.findIndex(c => c.id === chatId);
+          if (chatIndex !== -1) {
+            const [chatToMove] = sourceProject.chats.splice(chatIndex, 1);
+            targetProject.chats.push(chatToMove);
+          }
+        }
+        if (state.selectedChatId === chatId) {
+          state.selectedChatId = null;
         }
       });
   }
