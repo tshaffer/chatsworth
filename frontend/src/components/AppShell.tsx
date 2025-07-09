@@ -9,7 +9,7 @@ import ChatView from './ChatView';
 import { fetchProjects } from '../redux/projectsSlice';
 import { AppDispatch } from '../redux/store';
 
-const drawerWidth = 400;
+const drawerWidth = 444;
 
 const AppShell: React.FC = () => {
 
