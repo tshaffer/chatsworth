@@ -53,6 +53,7 @@ const ProjectList: React.FC = () => {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+  const [chatToMove, setChatToMove] = useState<{ chatId: string; projectId: string } | null>(null);
 
   const toggleProject = (projectId: string) => {
     setExpandedProjectIds((prev) => {
@@ -218,7 +219,8 @@ const ProjectList: React.FC = () => {
                         <IconButton
                           size="small"
                           onClick={(e) => {
-                            e.stopPropagation(); // prevent triggering selection when clicking 🗑️
+                            e.stopPropagation();
+                            setChatToMove({ chatId: chat.id, projectId: project.id });
                             setMoveDialogOpen(true);
                           }}
                         >
@@ -269,17 +271,21 @@ const ProjectList: React.FC = () => {
       <CreateProjectDialog open={newProjectDialogOpen} onClose={() => setNewProjectDialogOpen(false)} />
       <SelectProjectDialog
         open={moveDialogOpen}
-        currentProjectId={selectedProjectId ?? ''}
-        onClose={() => setMoveDialogOpen(false)}
+        currentProjectId={chatToMove?.projectId ?? ''}
+        onClose={() => {
+          setMoveDialogOpen(false);
+          setChatToMove(null);
+        }}
         onConfirm={(targetProjectId) => {
-          if (selectedChatId && selectedProjectId) {
+          if (chatToMove) {
             dispatch(moveChatToProject({
-              chatId: selectedChatId,
-              sourceProjectId: selectedProjectId,
+              chatId: chatToMove.chatId,
+              sourceProjectId: chatToMove.projectId,
               targetProjectId,
             }));
           }
           setMoveDialogOpen(false);
+          setChatToMove(null);
         }}
       />
     </Box>
