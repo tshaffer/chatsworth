@@ -26,7 +26,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ListItemSecondaryAction from '@mui/material/ListItemSecondaryAction';
-import SelectProjectDialog from './SelectProjecdtDialog';
+import SelectProjectDialog from './SelectProjectDialog';
 import { selectSelectedProjectId } from '../redux/selectors/projectSelectors';
 
 
