@@ -27,15 +27,18 @@ import {
   MoreVert as MoreVertIcon,
 } from '@mui/icons-material';
 import DeleteIcon from '@mui/icons-material/Delete';
-
-import { renameChat, renameProject, setSelectedChatId } from '../redux/projectsSlice';
+import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
+import { moveChatToProject, renameChat, renameProject, setSelectedChatId } from '../redux/projectsSlice';
 import CreateProjectDialog from './NewProjectDialog';
+import SelectProjectDialog from './SelectProjectDialog';
+import { selectSelectedProjectId } from '../redux/selectors/projectSelectors';
 
 const ProjectList: React.FC = () => {
 
   const dispatch = useDispatch<AppDispatch>();
 
   const projects = useSelector((state: RootState) => state.projects.projectList);
+  const selectedProjectId = useSelector(selectSelectedProjectId);
   const selectedChatId = useSelector((state: RootState) => state.projects.selectedChatId);
   const [editProjectName, setEditProjectName] = useState('');
   const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(
@@ -48,6 +51,8 @@ const ProjectList: React.FC = () => {
 
   const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+
+  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
 
   const toggleProject = (projectId: string) => {
     setExpandedProjectIds((prev) => {
@@ -208,6 +213,17 @@ const ProjectList: React.FC = () => {
                         >
                           <DeleteIcon fontSize="small" />
                         </IconButton>
+
+                        {/* Move to Project */}
+                        <IconButton
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation(); // prevent triggering selection when clicking 🗑️
+                            setMoveDialogOpen(true);
+                          }}
+                        >
+                          <DriveFileMoveIcon fontSize="small" />
+                        </IconButton>
                       </Box>
                     }
                   >
@@ -251,6 +267,21 @@ const ProjectList: React.FC = () => {
         }}
       />
       <CreateProjectDialog open={newProjectDialogOpen} onClose={() => setNewProjectDialogOpen(false)} />
+      <SelectProjectDialog
+        open={moveDialogOpen}
+        currentProjectId={selectedProjectId ?? ''}
+        onClose={() => setMoveDialogOpen(false)}
+        onConfirm={(targetProjectId) => {
+          if (selectedChatId && selectedProjectId) {
+            dispatch(moveChatToProject({
+              chatId: selectedChatId,
+              sourceProjectId: selectedProjectId,
+              targetProjectId,
+            }));
+          }
+          setMoveDialogOpen(false);
+        }}
+      />
     </Box>
   );
 };

@@ -20,28 +20,20 @@ import CloseIcon from '@mui/icons-material/Close';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useDispatch } from 'react-redux';
 import { AppDispatch } from '../redux/store';
-import { moveChatToProject, persistReorderedChatEntries, updatePromptSummary } from '../redux/projectsSlice';
+import { persistReorderedChatEntries, updatePromptSummary } from '../redux/projectsSlice';
 import { deleteChatEntry } from '../redux/projectsSlice';
 import DownloadIcon from '@mui/icons-material/Download';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import ListItemSecondaryAction from '@mui/material/ListItemSecondaryAction';
-import SelectProjectDialog from './SelectProjectDialog';
-import { selectSelectedProjectId } from '../redux/selectors/projectSelectors';
-
-
 
 const ChatView: React.FC = () => {
 
   const selectedChatId = useSelector((state: RootState) => state.projects.selectedChatId);
-  const selectedProjectId = useSelector(selectSelectedProjectId);
 
   const allProjects = useSelector((state: RootState) => state.projects.projectList);
 
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
-
-  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
 
   const cancelRef = useRef(false);
 
@@ -298,21 +290,6 @@ const ChatView: React.FC = () => {
         </List>
       )}
 
-      <SelectProjectDialog
-        open={moveDialogOpen}
-        currentProjectId={selectedProjectId ?? ''}
-        onClose={() => setMoveDialogOpen(false)}
-        onConfirm={(targetProjectId) => {
-          if (selectedChatId && selectedProjectId) {
-            dispatch(moveChatToProject({
-              chatId: selectedChatId,
-              sourceProjectId: selectedProjectId,
-              targetProjectId,
-            }));
-          }
-          setMoveDialogOpen(false);
-        }}
-      />
 
     </Box>
   );
