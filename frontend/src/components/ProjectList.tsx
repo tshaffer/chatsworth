@@ -6,6 +6,8 @@ import { appendParsedMarkdown, deleteChat, persistReorderedChats } from '../redu
 import { ProjectsState } from '../types';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import { Menu, MenuItem } from '@mui/material';
+import ChatContextMenu from './ChatContextMenu';
 
 import React, { useState } from 'react';
 import {
@@ -37,6 +39,14 @@ const ProjectList: React.FC = () => {
 
   const dispatch = useDispatch<AppDispatch>();
 
+  const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const [menuContext, setMenuContext] = useState<{
+    chatId: string;
+    projectId: string;
+    index: number;
+    total: number;
+  } | null>(null);
+
   const projects = useSelector((state: RootState) => state.projects.projectList);
   const selectedProjectId = useSelector(selectSelectedProjectId);
   const selectedChatId = useSelector((state: RootState) => state.projects.selectedChatId);
@@ -54,6 +64,7 @@ const ProjectList: React.FC = () => {
 
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [chatToMove, setChatToMove] = useState<{ chatId: string; projectId: string } | null>(null);
+
 
   const toggleProject = (projectId: string) => {
     setExpandedProjectIds((prev) => {
@@ -138,8 +149,6 @@ const ProjectList: React.FC = () => {
             <Collapse in={expandedProjectIds.has(project.id)} timeout="auto" unmountOnExit>
               <List component="div" disablePadding>
                 {project.chats.map((chat, index) => (
-
-                  // Inside your .map(chat, index => ...) loop:
                   <ListItem
                     key={chat.id}
                     sx={{
@@ -153,80 +162,21 @@ const ProjectList: React.FC = () => {
                       }
                     }}
                     secondaryAction={
-                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                        {/* Move Up */}
-                        <IconButton
-                          size="small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const newOrder = [...project.chats];
-                            const index = newOrder.findIndex(c => c.id === chat.id);
-                            const targetIndex = index - 1;
-                            if (targetIndex >= 0 && targetIndex < newOrder.length) {
-                              [newOrder[index], newOrder[targetIndex]] = [newOrder[targetIndex], newOrder[index]];
-                              dispatch(persistReorderedChats({ projectId: project.id, newOrder: newOrder.map(c => c.id) }));
-                            }
-                          }}
-                          disabled={index === 0}
-                        >
-                          <ArrowUpwardIcon fontSize="small" />
-                        </IconButton>
-
-                        {/* Move Down */}
-                        <IconButton
-                          size="small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const newOrder = [...project.chats];
-                            const index = newOrder.findIndex(c => c.id === chat.id);
-                            const targetIndex = index + 1;
-                            if (targetIndex >= 0 && targetIndex < newOrder.length) {
-                              [newOrder[index], newOrder[targetIndex]] = [newOrder[targetIndex], newOrder[index]];
-                              dispatch(persistReorderedChats({ projectId: project.id, newOrder: newOrder.map(c => c.id) }));
-                            }
-                          }}
-                          disabled={index === project.chats.length - 1}
-                        >
-                          <ArrowDownwardIcon fontSize="small" />
-                        </IconButton>
-
-                        {/* Edit */}
-                        <IconButton
-                          size="small"
-                          onClick={(e) => {
-                            e.stopPropagation(); // prevent triggering selection when clicking ✎
-                            setEditingChatId(chat.id);
-                            setEditChatTitle(chat.title);
-                          }}
-                        >
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-
-                        {/* Delete */}
-                        <IconButton
-                          size="small"
-                          onClick={(e) => {
-                            e.stopPropagation(); // prevent triggering selection when clicking 🗑️
-                            if (confirm(`Delete chat "${chat.title}"?`)) {
-                              dispatch(deleteChat({ projectId: project.id, chatId: chat.id }));
-                            }
-                          }}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-
-                        {/* Move to Project */}
-                        <IconButton
-                          size="small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setChatToMove({ chatId: chat.id, projectId: project.id });
-                            setMoveDialogOpen(true);
-                          }}
-                        >
-                          <DriveFileMoveIcon fontSize="small" />
-                        </IconButton>
-                      </Box>
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMenuAnchorEl(e.currentTarget);
+                          setMenuContext({
+                            chatId: chat.id,
+                            projectId: project.id,
+                            index,
+                            total: project.chats.length,
+                          });
+                        }}
+                      >
+                        <MoreVertIcon fontSize="small" />
+                      </IconButton>
                     }
                   >
                     {editingChatId === chat.id ? (
@@ -255,11 +205,27 @@ const ProjectList: React.FC = () => {
                 ))}
               </List>
             </Collapse>
-
             <Divider sx={{ my: 1 }} />
           </Box>
         ))
       )}
+      {/* ⬇️ Render the context menu outside the map loop */}
+      <ChatContextMenu
+        anchorEl={menuAnchorEl}
+        context={menuContext}
+        onClose={() => {
+          setMenuAnchorEl(null);
+          setMenuContext(null);
+        }}
+        onRename={(chatId, title) => {
+          setEditingChatId(chatId);
+          setEditChatTitle(title);
+        }}
+        onMoveToProject={(chatId, projectId) => {
+          setChatToMove({ chatId, projectId });
+          setMoveDialogOpen(true);
+        }}
+      />
       <ImportFromDriveDialog
         open={importDialogOpen}
         onClose={() => setImportDialogOpen(false)}
