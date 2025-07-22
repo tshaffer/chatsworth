@@ -13,3 +13,12 @@ export const selectSelectedProjectId = (state: RootState): string | null => {
 
   return null;
 };
+
+export const selectProjectIdByChatId = (state: RootState, chatId: string): string | undefined => {
+  for (const project of state.projects.projectList) {
+    if (project.chats.some(chat => chat.id === chatId)) {
+      return project.id;
+    }
+  }
+  return undefined;
+};

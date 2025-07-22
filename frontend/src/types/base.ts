@@ -12,3 +12,11 @@ export interface FileToImport {
   lastModifiedDate: string;
 }
 
+export interface MoveChatEntryBody {
+  fromProjectId: string;
+  fromChatId: string;
+  toProjectId: string;
+  toChatId: string;
+  entryIndex: number;
+  newIndex?: number; // Optional: place in the destination chat
+}

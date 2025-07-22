@@ -2,7 +2,7 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { Project, ProjectsState } from '../types';
+import { Chat, MoveChatEntryBody, Project, ProjectsState } from '../types';
 
 export const fetchProjects = createAsyncThunk(
   'projects/fetchProjects',
@@ -35,7 +35,6 @@ export const renameProject = createAsyncThunk<
   }
 );
 
-// In projectsSlice.ts
 export const persistReorderedChats = createAsyncThunk<
   { projectId: string; newOrder: string[] },
   { projectId: string; newOrder: string[] }
@@ -97,18 +96,58 @@ export const deleteChatEntry = createAsyncThunk(
   }
 );
 
-// redux/projectsThunks.ts
 export const moveChatToProject = createAsyncThunk<
   { chatId: string; sourceProjectId: string; targetProjectId: string },
   { chatId: string; sourceProjectId: string; targetProjectId: string }
->('projects/moveChatToProject', async ({ chatId, sourceProjectId, targetProjectId }) => {
-  await axios.post('/api/v1/projects/moveChat', {
-    chatId,
-    sourceProjectId,
-    targetProjectId,
+>('projects/moveChatToProject',
+  async ({ chatId, sourceProjectId, targetProjectId }) => {
+    await axios.post('/api/v1/projects/moveChat', {
+      chatId,
+      sourceProjectId,
+      targetProjectId,
+    });
+    return { chatId, sourceProjectId, targetProjectId };
   });
-  return { chatId, sourceProjectId, targetProjectId };
-});
+
+export const moveChatEntry = createAsyncThunk(
+  'projects/moveChatEntry',
+  async ({ fromProjectId, fromChatId, toProjectId, toChatId, entryIndex, newIndex = 0 }: MoveChatEntryBody) => {
+    await axios.post('/api/v1/chat-entries/moveChat', {
+      fromProjectId, fromChatId, toProjectId, toChatId, entryIndex, newIndex
+    });
+    return { fromProjectId, fromChatId, toProjectId, toChatId, entryIndex, newIndex };
+  }
+);
+
+// const findChatById = (state: ProjectsState, chatId: string) => {
+//   for (const project of state.projectList) {
+//     const chat = project.chats.find(c => c.id === chatId);
+//     if (chat) return chat;
+//   }
+//   return null;
+// };
+function findChatById(state: ProjectsState, chatId: string): Chat | undefined {
+  for (const project of state.projectList) {
+    const chat = project.chats.find(c => c.id === chatId);
+    if (chat) return chat;
+  }
+  return undefined;
+}
+
+interface ProjectAndChat {
+  projectId: string;
+  chat: Chat;
+}
+
+function findProjectAndChatById(state: ProjectsState, chatId: string): ProjectAndChat | undefined {
+  for (const project of state.projectList) {
+    const chat = project.chats.find(c => c.id === chatId);
+    if (chat) {
+      return { projectId: project.id, chat };
+    }
+  }
+  return undefined;
+}
 
 const initialState: ProjectsState = {
   projectList: [],
@@ -227,6 +266,19 @@ const projectsSlice = createSlice({
           const currentEntries = chat.entries;
           chat.entries = newOrder.map(i => currentEntries[i]).filter(Boolean);
           break;
+        }
+      })
+      .addCase(moveChatEntry.fulfilled, (state, action) => {
+        const { fromChatId, toChatId, entryIndex, newIndex } = action.payload;
+        const fromChatData: ProjectAndChat | undefined = findProjectAndChatById(state, fromChatId);
+        const toChatData: ProjectAndChat | undefined = findProjectAndChatById(state, toChatId);
+        if (!fromChatData || !toChatData) return;
+        const fromChat = fromChatData.chat;
+        const toChat = toChatData.chat;
+        if (!fromChat || !toChat) return;
+        const [entry] = fromChat.entries.splice(entryIndex, 1);
+        if (entry) {
+          toChat.entries.splice(newIndex, 0, entry);
         }
       })
       .addCase(moveChatToProject.fulfilled, (state, action) => {

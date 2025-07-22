@@ -7,6 +7,7 @@ import {
   exportChat,
   getVersion,
   markdownImporterEndpoint,
+  moveChatEntry,
   moveChatToProject,
   renameOrMoveChat,
   renameProject,
@@ -35,6 +36,7 @@ export const createRoutes = (app: express.Application) => {
 
   app.patch('/api/v1/chat-entries/:chatId/:entryIndex', updateChatEntry);
   app.delete('/api/v1/chat-entries/:chatId/:entryIndex', deleteChatEntry);
+  app.post('/api/v1/chat-entries/moveChat', moveChatEntry);
 
   // routes/projectRoutes.ts
   app.post('/api/v1/projects/moveChat', moveChatToProject);

@@ -1,7 +1,7 @@
 // controllers/chatEntryController.ts
 import { Request, Response } from 'express';
 import { ProjectModel } from '../models/Project';
-import { Chat } from '../types'; // Adjust to match your types location
+import { Chat, Project } from '../types'; // Adjust to match your types location
 import type { Document } from 'mongoose';
 
 import { Project as ProjectType } from '../types'; // Rename to avoid conflict with Mongoose model
@@ -96,5 +96,27 @@ export const reorderChatEntries = async (req: Request, res: Response) => {
   chat.entries = newOrder.map((i: number) => currentEntries[i]).filter(Boolean);
 
   await project.save();
+  res.json({ success: true });
+};
+
+export const moveChatEntry = async (req: Request, res: Response) => {
+  const { fromProjectId, fromChatId, toProjectId, toChatId, entryIndex, newIndex = 0 } = req.body;
+
+  const fromProject = await ProjectModel.findOne({ id: fromProjectId });
+  const toProject = await ProjectModel.findOne({ id: toProjectId });
+  if (!fromProject || !toProject) {
+    return res.status(404).json({ error: 'Project not found' });
+  }
+
+  const fromChat = (fromProject.chats as Chat[]).find(c => c.id === fromChatId);
+  const toChat = (toProject.chats as Chat[]).find(c => c.id === toChatId);
+  if (!fromChat || !toChat) return res.status(404).json({ error: 'Chat not found' });
+
+  const [entry] = fromChat.entries.splice(entryIndex, 1);
+  if (!entry) return res.status(400).json({ error: 'Invalid entryIndex' });
+
+  toChat.entries.splice(newIndex, 0, entry);
+
+  await toProject.save();
   res.json({ success: true });
 };
