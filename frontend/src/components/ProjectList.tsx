@@ -2,8 +2,8 @@
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '../redux/store';
 import ImportFromDriveDialog from './ImportFromDriveDialog';
-import { appendParsedMarkdown, deleteChat, persistReorderedChats } from '../redux/projectsSlice'; // Make sure this exists
-import { ProjectsState } from '../types';
+import { appendParsedMarkdown, deleteChat, deleteProject, persistReorderedChats } from '../redux/projectsSlice'; // Make sure this exists
+import { Project, ProjectsState } from '../types';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import { Menu, MenuItem } from '@mui/material';
@@ -34,6 +34,7 @@ import { moveChatToProject, renameChat, renameProject, setSelectedChatId } from 
 import CreateProjectDialog from './NewProjectDialog';
 import SelectProjectDialog from './SelectProjectDialog';
 import { selectSelectedProjectId } from '../redux/selectors/projectSelectors';
+import ConfirmDeleteProjectDialog from './ConfirmDeleteDialog';
 
 const ProjectList: React.FC = () => {
 
@@ -65,6 +66,8 @@ const ProjectList: React.FC = () => {
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [chatToMove, setChatToMove] = useState<{ chatId: string; projectId: string } | null>(null);
 
+const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
 
   const toggleProject = (projectId: string) => {
     setExpandedProjectIds((prev) => {
@@ -109,6 +112,15 @@ const ProjectList: React.FC = () => {
                     }}
                   >
                     <EditIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton
+                    onClick={() => {
+                      setProjectToDelete(project);
+                      setDeleteDialogOpen(true);
+                    }}
+                    size="small"
+                  >
+                    <DeleteIcon fontSize="small" />
                   </IconButton>
                   <IconButton size="small">
                     <MoreVertIcon fontSize="small" />
@@ -226,6 +238,23 @@ const ProjectList: React.FC = () => {
           setMoveDialogOpen(true);
         }}
       />
+      {projectToDelete && (
+        <ConfirmDeleteProjectDialog
+          open={deleteDialogOpen}
+          projectName={projectToDelete.name}
+          onCancel={() => {
+            setDeleteDialogOpen(false);
+            setProjectToDelete(null);
+          }}
+          onConfirm={() => {
+            if (projectToDelete) {
+              dispatch(deleteProject(projectToDelete.id));
+              setDeleteDialogOpen(false);
+              setProjectToDelete(null);
+            }
+          }}
+        />
+      )}
       <ImportFromDriveDialog
         open={importDialogOpen}
         onClose={() => setImportDialogOpen(false)}

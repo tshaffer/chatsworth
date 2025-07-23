@@ -35,6 +35,14 @@ export const renameProject = createAsyncThunk<
   }
 );
 
+export const deleteProject = createAsyncThunk(
+  'projects/deleteProject',
+  async (projectId: string) => {
+    await axios.delete(`/api/v1/projects/${projectId}`);
+    return projectId;
+  }
+);
+
 export const persistReorderedChats = createAsyncThunk<
   { projectId: string; newOrder: string[] },
   { projectId: string; newOrder: string[] }
@@ -119,21 +127,6 @@ export const moveChatEntry = createAsyncThunk(
   }
 );
 
-// const findChatById = (state: ProjectsState, chatId: string) => {
-//   for (const project of state.projectList) {
-//     const chat = project.chats.find(c => c.id === chatId);
-//     if (chat) return chat;
-//   }
-//   return null;
-// };
-function findChatById(state: ProjectsState, chatId: string): Chat | undefined {
-  for (const project of state.projectList) {
-    const chat = project.chats.find(c => c.id === chatId);
-    if (chat) return chat;
-  }
-  return undefined;
-}
-
 interface ProjectAndChat {
   projectId: string;
   chat: Chat;
@@ -212,16 +205,19 @@ const projectsSlice = createSlice({
           project.name = name;
         }
       })
+      .addCase(deleteProject.fulfilled, (state, action) => {
+        state.projectList = state.projectList.filter(p => p.id !== action.payload);
+      })
       .addCase(renameChat.fulfilled, (state, action) => {
         const { chatId, title } = action.payload;
         for (const project of state.projectList) {
           const chat = project.chats.find(c => c.id === chatId);
-          if (chat) {
-            chat.title = title;
-            break;
-          }
+        if (chat) {
+          chat.title = title;
+          break;
         }
-      })
+      }
+    })
       .addCase(updatePromptSummary.fulfilled, (state, action) => {
         const { chatId, entryIndex, promptSummary } = action.payload;
 
