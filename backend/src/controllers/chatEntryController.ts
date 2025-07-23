@@ -100,23 +100,41 @@ export const reorderChatEntries = async (req: Request, res: Response) => {
 };
 
 export const moveChatEntry = async (req: Request, res: Response) => {
-  const { fromProjectId, fromChatId, toProjectId, toChatId, entryIndex, newIndex = 0 } = req.body;
+  const {
+    fromProjectId,
+    fromChatId,
+    toProjectId,
+    toChatId,
+    entryIndex,
+    newIndex = 0,
+  } = req.body;
 
   const fromProject = await ProjectModel.findOne({ id: fromProjectId });
   const toProject = await ProjectModel.findOne({ id: toProjectId });
+
   if (!fromProject || !toProject) {
     return res.status(404).json({ error: 'Project not found' });
   }
 
   const fromChat = (fromProject.chats as Chat[]).find(c => c.id === fromChatId);
   const toChat = (toProject.chats as Chat[]).find(c => c.id === toChatId);
-  if (!fromChat || !toChat) return res.status(404).json({ error: 'Chat not found' });
+
+  if (!fromChat || !toChat) {
+    return res.status(404).json({ error: 'Chat not found' });
+  }
 
   const [entry] = fromChat.entries.splice(entryIndex, 1);
-  if (!entry) return res.status(400).json({ error: 'Invalid entryIndex' });
+  if (!entry) {
+    return res.status(400).json({ error: 'Invalid entryIndex' });
+  }
 
   toChat.entries.splice(newIndex, 0, entry);
 
-  await toProject.save();
+  if (fromProjectId === toProjectId) {
+    await toProject.save(); // fromProject === toProject
+  } else {
+    await Promise.all([fromProject.save(), toProject.save()]);
+  }
+
   res.json({ success: true });
 };
