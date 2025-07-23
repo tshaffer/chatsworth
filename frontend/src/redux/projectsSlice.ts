@@ -89,10 +89,36 @@ export const updatePromptSummary = createAsyncThunk<
 >(
   'projects/updatePromptSummary',
   async ({ chatId, entryIndex, promptSummary }) => {
-    await axios.patch(`/api/v1/chat-entries/${chatId}/${entryIndex}`, {
+    await axios.patch(`/api/v1/chat-entries/promptSummary/${chatId}/${entryIndex}`, {
       promptSummary,
     });
     return { chatId, entryIndex, promptSummary };
+  }
+);
+
+export const updateOriginalPrompt = createAsyncThunk<
+  { chatId: string; entryIndex: number; originalPrompt: string },
+  { chatId: string; entryIndex: number; originalPrompt: string }
+>(
+  'projects/updateOriginalPrompt',
+  async ({ chatId, entryIndex, originalPrompt }) => {
+    await axios.patch(`/api/v1/chat-entries/originalPrompt/${chatId}/${entryIndex}`, {
+      originalPrompt,
+    });
+    return { chatId, entryIndex, originalPrompt };
+  }
+);
+
+export const updateResponse = createAsyncThunk<
+  { chatId: string; entryIndex: number; response: string },
+  { chatId: string; entryIndex: number; response: string }
+>(
+  'projects/updateResponse',
+  async ({ chatId, entryIndex, response }) => {
+    await axios.patch(`/api/v1/chat-entries/response/${chatId}/${entryIndex}`, {
+      response,
+    });
+    return { chatId, entryIndex, response };
   }
 );
 
@@ -212,12 +238,12 @@ const projectsSlice = createSlice({
         const { chatId, title } = action.payload;
         for (const project of state.projectList) {
           const chat = project.chats.find(c => c.id === chatId);
-        if (chat) {
-          chat.title = title;
-          break;
+          if (chat) {
+            chat.title = title;
+            break;
+          }
         }
-      }
-    })
+      })
       .addCase(updatePromptSummary.fulfilled, (state, action) => {
         const { chatId, entryIndex, promptSummary } = action.payload;
 
@@ -225,6 +251,28 @@ const projectsSlice = createSlice({
           const chat = project.chats.find((c) => c.id === chatId);
           if (chat && chat.entries[entryIndex]) {
             chat.entries[entryIndex].promptSummary = promptSummary;
+            break;
+          }
+        }
+      })
+      .addCase(updateOriginalPrompt.fulfilled, (state, action) => {
+        const { chatId, entryIndex, originalPrompt } = action.payload;
+
+        for (const project of state.projectList) {
+          const chat = project.chats.find((c) => c.id === chatId);
+          if (chat && chat.entries[entryIndex]) {
+            chat.entries[entryIndex].originalPrompt = originalPrompt;
+            break;
+          }
+        }
+      })
+      .addCase(updateResponse.fulfilled, (state, action) => {
+        const { chatId, entryIndex, response } = action.payload;
+
+        for (const project of state.projectList) {
+          const chat = project.chats.find((c) => c.id === chatId);
+          if (chat && chat.entries[entryIndex]) {
+            chat.entries[entryIndex].response = response;
             break;
           }
         }

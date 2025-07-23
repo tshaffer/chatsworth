@@ -21,6 +21,8 @@ import {
   updatePromptSummary,
   deleteChatEntry,
   moveChatEntry,
+  updateOriginalPrompt,
+  updateResponse,
 } from '../redux/projectsSlice';
 import DownloadIcon from '@mui/icons-material/Download';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -45,6 +47,9 @@ const ChatView: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const [entryIndexToMove, setEntryIndexToMove] = useState<number | null>(null);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+
+  const [editingPromptIndex, setEditingPromptIndex] = useState<number | null>(null);
+  const [editingResponseIndex, setEditingResponseIndex] = useState<number | null>(null);
 
   const selectedChat: Chat | undefined = allProjects
     .flatMap((project) => project.chats)
@@ -256,11 +261,116 @@ const ChatView: React.FC = () => {
                     <Typography variant="caption" color="text.secondary" gutterBottom>
                       Original Prompt:
                     </Typography>
-                    <ReactMarkdown>{entry.originalPrompt}</ReactMarkdown>
-                    <Typography variant="caption" color="text.secondary" gutterBottom sx={{ mt: 2 }}>
+
+                    {editingPromptIndex === index ? (
+                      <Box>
+                        <TextField
+                          fullWidth
+                          multiline
+                          minRows={4}
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onBlur={() => {
+                            if (editValue.trim() !== entry.originalPrompt) {
+                              dispatch(updateOriginalPrompt({
+                                chatId: selectedChat.id,
+                                entryIndex: index,
+                                originalPrompt: editValue.trim(),
+                              }));
+                            }
+                            setEditingPromptIndex(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') {
+                              e.preventDefault();
+                              setEditingPromptIndex(null);
+                            }
+                          }}
+                          autoFocus
+                        />
+
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ mt: 2 }}
+                        >
+                          Preview:
+                        </Typography>
+                        <Box sx={{ border: '1px solid #ccc', borderRadius: 1, p: 1, mt: 1 }}>
+                          <ReactMarkdown>{editValue}</ReactMarkdown>
+                        </Box>
+                      </Box>
+                    ) : (
+                      <Box
+                        onClick={() => {
+                          setEditingPromptIndex(index);
+                          setEditValue(entry.originalPrompt);
+                        }}
+                        sx={{ cursor: 'pointer' }}
+                      >
+                        <ReactMarkdown>{entry.originalPrompt}</ReactMarkdown>
+                      </Box>
+                    )}
+
+                    <Typography variant="caption" color="text.secondary" gutterBottom>
                       Response:
                     </Typography>
-                    <ReactMarkdown>{entry.response}</ReactMarkdown>
+
+                    {editingResponseIndex === index ? (
+                      <Box>
+                        <TextField
+                          fullWidth
+                          multiline
+                          minRows={4}
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          onBlur={() => {
+                            if (editValue.trim() !== entry.response) {
+                              dispatch(updateResponse({
+                                chatId: selectedChat.id,
+                                entryIndex: index,
+                                response: editValue.trim(),
+                              }));
+                            }
+                            setEditingResponseIndex(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') {
+                              e.preventDefault();
+                              setEditingResponseIndex(null);
+                            }
+                          }}
+                          autoFocus
+                        />
+
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ mt: 2 }}
+                        >
+                          Preview:
+                        </Typography>
+                        <Box sx={{ border: '1px solid #ccc', borderRadius: 1, p: 1, mt: 1 }}>
+                          <ReactMarkdown>{editValue}</ReactMarkdown>
+                        </Box>
+                      </Box>
+                    ) : (
+                      <Box
+                        onClick={() => {
+                          setEditingResponseIndex(index);
+                          setEditValue(entry.response);
+                        }}
+                        sx={{ cursor: 'pointer' }}
+                      >
+                        <ReactMarkdown>{entry.response}</ReactMarkdown>
+                      </Box>
+                    )}
+
+
+                    {/* <Typography variant="caption" color="text.secondary" gutterBottom sx={{ mt: 2 }}>
+                      Response:
+                    </Typography>
+                    <ReactMarkdown>{entry.response}</ReactMarkdown> */}
                   </Paper>
                 </Collapse>
               </React.Fragment>

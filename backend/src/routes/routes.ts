@@ -13,7 +13,9 @@ import {
   renameProject,
   reorderChatEntries,
   reorderChats,
-  updateChatEntry,
+  updateChatEntryOriginalPrompt,
+  updateChatEntryPromptSummary,
+  updateChatEntryResponse,
 } from '../controllers';
 import { getProjects } from '../controllers/projects';
 
@@ -34,7 +36,10 @@ export const createRoutes = (app: express.Application) => {
   app.delete('/api/v1/projects/:projectId/chats/:chatId', deleteChat);
   app.post('/api/v1/chats/:chatId/reorderEntries', reorderChatEntries);
 
-  app.patch('/api/v1/chat-entries/:chatId/:entryIndex', updateChatEntry);
+  app.patch('/api/v1/chat-entries/promptSummary/:chatId/:entryIndex', updateChatEntryPromptSummary);
+  app.patch('/api/v1/chat-entries/originalPrompt/:chatId/:entryIndex', updateChatEntryOriginalPrompt);
+  app.patch('/api/v1/chat-entries/response/:chatId/:entryIndex', updateChatEntryResponse);
+
   app.delete('/api/v1/chat-entries/:chatId/:entryIndex', deleteChatEntry);
   app.post('/api/v1/chat-entries/moveChat', moveChatEntry);
 
