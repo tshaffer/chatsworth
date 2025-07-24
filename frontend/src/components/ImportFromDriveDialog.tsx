@@ -31,9 +31,9 @@ const ImportFromDriveDialog = (props: ImportFromDriveDialogProps) => {
   };
 
   const handleImportFilesSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files.length > 0) {
+    setSelectedFiles(event.target.files);
+    if (event.target.files && event.target.files.length === 1) {
       const file = event.target.files[0];
-      setSelectedFiles(event.target.files);
       const defaultName = file.name.replace(/\.md$/i, '');
       setProjectName(defaultName);
     }
@@ -68,6 +68,7 @@ const ImportFromDriveDialog = (props: ImportFromDriveDialogProps) => {
         <DialogContent sx={{ pt: 1, pb: 0, minWidth: '500px' }}>
           <input
             type="file"
+            multiple
             accept=".md"
             onChange={handleImportFilesSelect}
             id="importFilesInput"
