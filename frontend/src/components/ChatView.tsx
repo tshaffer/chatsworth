@@ -35,29 +35,52 @@ import MoveChatEntryDialog from './MoveChatEntryDialog';
 import { Chat } from '../types';
 import { selectProjectIdByChatId } from '../redux';
 
-const ChatView: React.FC = () => {
+interface Props {
+  searchQuery?: string | null;
+}
+
+const ChatView: React.FC<Props> = ({ searchQuery }) => {
   const selectedChatId = useSelector((state: RootState) => state.projects.selectedChatId);
   const selectedProjectId = useSelector((state: RootState) =>
     selectProjectIdByChatId(state, selectedChatId!)
   );
   const allProjects = useSelector((state: RootState) => state.projects.projectList);
+  const dispatch = useDispatch<AppDispatch>();
+
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
-  const cancelRef = useRef(false);
-  const dispatch = useDispatch<AppDispatch>();
-  const [entryIndexToMove, setEntryIndexToMove] = useState<number | null>(null);
-  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
-
   const [editingPromptIndex, setEditingPromptIndex] = useState<number | null>(null);
   const [editingResponseIndex, setEditingResponseIndex] = useState<number | null>(null);
-
-  const selectedChat: Chat | undefined = allProjects
-    .flatMap((project) => project.chats)
-    .find((chat) => chat.id === selectedChatId);
-
-  const allChats: Chat[] = allProjects.flatMap((project) => project.chats);
-
+  const [entryIndexToMove, setEntryIndexToMove] = useState<number | null>(null);
+  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+  const cancelRef = useRef(false);
   const [expandedResponses, setExpandedResponses] = useState<Record<string, boolean>>({});
+
+  const normalizedQuery = searchQuery?.toLowerCase().trim();
+
+  const isMatch = (chat: Chat): boolean => {
+    if (!normalizedQuery) return true;
+    return (
+      chat.title.toLowerCase().includes(normalizedQuery) ||
+      chat.entries.some((entry) =>
+        entry.originalPrompt?.toLowerCase().includes(normalizedQuery) ||
+        entry.promptSummary?.toLowerCase().includes(normalizedQuery) ||
+        entry.response?.toLowerCase().includes(normalizedQuery)
+      )
+    );
+  };
+
+  // const selectedChat: Chat | undefined = allProjects
+  //   .flatMap((project) => project.chats)
+  //   .filter(isMatch)
+  //   .find((chat) => chat.id === selectedChatId);
+  // const allChats = allProjects.flatMap((project) => project.chats);
+
+  const allChats = allProjects.flatMap((project) => project.chats);
+  const selectedChat: Chat | undefined = allChats.find(
+    (chat) => chat.id === selectedChatId
+  );
+  const isVisible = selectedChat && (!searchQuery || isMatch(selectedChat));
 
   const toggleResponse = (index: number) => {
     const key = `${selectedChat?.id}-${index}`;
@@ -78,7 +101,7 @@ const ChatView: React.FC = () => {
     }
     setMoveDialogOpen(false);
     setEntryIndexToMove(null);
-  }
+  };
 
   if (!selectedChat) {
     return (
@@ -87,6 +110,17 @@ const ChatView: React.FC = () => {
       </Box>
     );
   }
+
+  console.log('Selected chat:', selectedChat);
+
+  if (!isVisible) {
+    return (
+      <Box sx={{ textAlign: 'center', mt: 4, fontStyle: 'italic' }}>
+        Selected chat does not match the current search.
+      </Box>
+    );
+  }
+
 
   return (
     <Box>

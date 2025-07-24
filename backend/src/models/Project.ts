@@ -26,4 +26,12 @@ const ProjectSchema = new mongoose.Schema({
   chats: [ChatSchema],
 });
 
+// Create a full-text index on nested chat entry fields and chat titles
+ProjectSchema.index({
+  'chats.title': 'text',
+  'chats.entries.originalPrompt': 'text',
+  'chats.entries.promptSummary': 'text',
+  'chats.entries.response': 'text',
+});
+
 export const ProjectModel = mongoose.model('Project', ProjectSchema);

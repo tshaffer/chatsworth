@@ -1,15 +1,16 @@
 // components/ProjectList.tsx
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '../redux/store';
-import ImportFromDriveDialog from './ImportFromDriveDialog';
-import { appendParsedMarkdown, deleteChat, deleteProject, persistReorderedChats } from '../redux/projectsSlice'; // Make sure this exists
-import { Project, ProjectsState } from '../types';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import { Menu, MenuItem } from '@mui/material';
-import ChatContextMenu from './ChatContextMenu';
+import {
+  appendParsedMarkdown,
+  deleteProject,
+  moveChatToProject,
+  renameChat,
+  renameProject,
+  setSelectedChatId,
+} from '../redux/projectsSlice';
+import { Project, ProjectsState, Chat } from '../types';
 
-import React, { useState } from 'react';
 import {
   Box,
   List,
@@ -27,18 +28,31 @@ import {
   ExpandMore,
   Edit as EditIcon,
   MoreVert as MoreVertIcon,
+  Delete as DeleteIcon,
 } from '@mui/icons-material';
-import DeleteIcon from '@mui/icons-material/Delete';
-import DriveFileMoveIcon from '@mui/icons-material/DriveFileMove';
-import { moveChatToProject, renameChat, renameProject, setSelectedChatId } from '../redux/projectsSlice';
+
+import React, { useState, useEffect, useMemo } from 'react';
+import ChatContextMenu from './ChatContextMenu';
 import CreateProjectDialog from './NewProjectDialog';
 import SelectProjectDialog from './SelectProjectDialog';
-import { selectSelectedProjectId } from '../redux/selectors/projectSelectors';
+import ImportFromDriveDialog from './ImportFromDriveDialog';
 import ConfirmDeleteProjectDialog from './ConfirmDeleteDialog';
+import { selectSelectedProjectId } from '../redux/selectors/projectSelectors';
 
-const ProjectList: React.FC = () => {
+interface ProjectListProps {
+  searchQuery?: string | null;
+}
 
+const ProjectList: React.FC<ProjectListProps> = ({ searchQuery }) => {
   const dispatch = useDispatch<AppDispatch>();
+  const allProjects = useSelector((state: RootState) => state.projects.projectList);
+  const selectedProjectId = useSelector(selectSelectedProjectId);
+  const selectedChatId = useSelector((state: RootState) => state.projects.selectedChatId);
+
+  const [editProjectName, setEditProjectName] = useState('');
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [editingChatId, setEditingChatId] = useState<string | null>(null);
+  const [editChatTitle, setEditChatTitle] = useState('');
 
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
   const [menuContext, setMenuContext] = useState<{
@@ -48,26 +62,57 @@ const ProjectList: React.FC = () => {
     total: number;
   } | null>(null);
 
-  const projects = useSelector((state: RootState) => state.projects.projectList);
-  const selectedProjectId = useSelector(selectSelectedProjectId);
-  const selectedChatId = useSelector((state: RootState) => state.projects.selectedChatId);
-  const [editProjectName, setEditProjectName] = useState('');
-  const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(
-    new Set(projects.map((p) => p.id))
-  );
-  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
-
-  const [editingChatId, setEditingChatId] = useState<string | null>(null);
-  const [editChatTitle, setEditChatTitle] = useState('');
-
   const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
-
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [chatToMove, setChatToMove] = useState<{ chatId: string; projectId: string } | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
 
-const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
+  const normalizedQuery = searchQuery?.toLowerCase().trim();
+
+  const isMatch = (chat: Chat): boolean => {
+    if (!normalizedQuery) return true;
+    return (
+      chat.title.toLowerCase().includes(normalizedQuery) ||
+      chat.entries.some((entry) =>
+        entry.originalPrompt?.toLowerCase().includes(normalizedQuery) ||
+        entry.promptSummary?.toLowerCase().includes(normalizedQuery) ||
+        entry.response?.toLowerCase().includes(normalizedQuery)
+      )
+    );
+  };
+
+  const projects = useMemo(() => {
+    if (!searchQuery) return allProjects;
+
+    return allProjects
+      .map((project) => ({
+        ...project,
+        chats: project.chats.filter(isMatch),
+      }))
+      .filter((project) => project.chats.length > 0);
+  }, [searchQuery, allProjects]);
+
+  const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(new Set());
+
+  // Expand matching projects when searchQuery changes
+  useEffect(() => {
+    if (!searchQuery) {
+      // Restore all projects expanded when search is cleared
+      setExpandedProjectIds(new Set(allProjects.map((p) => p.id)));
+      return;
+    }
+
+    const matching = new Set<string>();
+    for (const project of allProjects) {
+      if (project.chats.some(isMatch)) {
+        matching.add(project.id);
+      }
+    }
+
+    setExpandedProjectIds(matching);
+  }, [searchQuery, allProjects]);
 
   const toggleProject = (projectId: string) => {
     setExpandedProjectIds((prev) => {
@@ -79,22 +124,13 @@ const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
 
   return (
     <Box p={2}>
-      <Button
-        variant="contained"
-        fullWidth
-        sx={{ mb: 1 }}
-        onClick={() => setNewProjectDialogOpen(true)}
-      >
+      <Button variant="contained" fullWidth sx={{ mb: 1 }} onClick={() => setNewProjectDialogOpen(true)}>
         + New Project
       </Button>
-      <Button
-        variant="outlined"
-        fullWidth
-        sx={{ mb: 2 }}
-        onClick={() => setImportDialogOpen(true)}
-      >
+      <Button variant="outlined" fullWidth sx={{ mb: 2 }} onClick={() => setImportDialogOpen(true)}>
         Import Markdown
       </Button>
+
       {projects.length === 0 ? (
         <Box sx={{ textAlign: 'center', mt: 4, fontStyle: 'italic' }}>No projects found.</Box>
       ) : (
@@ -104,22 +140,16 @@ const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
               disableGutters
               secondaryAction={
                 <Box>
-                  <IconButton
-                    size="small"
-                    onClick={() => {
-                      setEditingProjectId(project.id);
-                      setEditProjectName(project.name);
-                    }}
-                  >
+                  <IconButton size="small" onClick={() => {
+                    setEditingProjectId(project.id);
+                    setEditProjectName(project.name);
+                  }}>
                     <EditIcon fontSize="small" />
                   </IconButton>
-                  <IconButton
-                    onClick={() => {
-                      setProjectToDelete(project);
-                      setDeleteDialogOpen(true);
-                    }}
-                    size="small"
-                  >
+                  <IconButton size="small" onClick={() => {
+                    setProjectToDelete(project);
+                    setDeleteDialogOpen(true);
+                  }}>
                     <DeleteIcon fontSize="small" />
                   </IconButton>
                   <IconButton size="small">
@@ -221,7 +251,7 @@ const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
           </Box>
         ))
       )}
-      {/* ⬇️ Render the context menu outside the map loop */}
+
       <ChatContextMenu
         anchorEl={menuAnchorEl}
         context={menuContext}
@@ -238,6 +268,7 @@ const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
           setMoveDialogOpen(true);
         }}
       />
+
       {projectToDelete && (
         <ConfirmDeleteProjectDialog
           open={deleteDialogOpen}
@@ -255,6 +286,7 @@ const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
           }}
         />
       )}
+
       <ImportFromDriveDialog
         open={importDialogOpen}
         onClose={() => setImportDialogOpen(false)}
@@ -263,7 +295,9 @@ const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
           dispatch(appendParsedMarkdown(parsed));
         }}
       />
+
       <CreateProjectDialog open={newProjectDialogOpen} onClose={() => setNewProjectDialogOpen(false)} />
+
       <SelectProjectDialog
         open={moveDialogOpen}
         currentProjectId={chatToMove?.projectId ?? ''}
@@ -273,11 +307,13 @@ const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
         }}
         onConfirm={(targetProjectId) => {
           if (chatToMove) {
-            dispatch(moveChatToProject({
-              chatId: chatToMove.chatId,
-              sourceProjectId: chatToMove.projectId,
-              targetProjectId,
-            }));
+            dispatch(
+              moveChatToProject({
+                chatId: chatToMove.chatId,
+                sourceProjectId: chatToMove.projectId,
+                targetProjectId,
+              })
+            );
           }
           setMoveDialogOpen(false);
           setChatToMove(null);

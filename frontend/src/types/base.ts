@@ -20,3 +20,4 @@ export interface MoveChatEntryBody {
   entryIndex: number;
   newIndex?: number; // Optional: place in the destination chat
 }
+

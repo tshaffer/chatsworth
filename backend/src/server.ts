@@ -7,6 +7,7 @@ const bodyParser = require('body-parser');
 import { Server } from 'http';
 import path from 'path';
 import mongoose from 'mongoose';
+import { ProjectModel } from './models';
 
 console.log('This is a placeholder for the server code.');
 
@@ -53,6 +54,9 @@ const startServer = async () => {
   const server: Server<any> = app.listen(PORT, () => {
     console.log(`Server is running at http://localhost:${PORT}`);
   });
+
+  // one time only
+  // await ProjectModel.syncIndexes();
 
   process.on('unhandledRejection', (err: any, promise: any) => {
     console.log(`Error: ${err.message}`);

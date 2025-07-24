@@ -1,3 +1,5 @@
+import { Search } from "react-router-dom";
+
 // Top-level structure returned from the backend
 export interface ProjectsState {
   projectList: Project[];
@@ -35,3 +37,10 @@ export interface ChatEntry {
   response: string;
 }
 
+export interface SearchResult {
+  id: string;          // project ID
+  name: string;        // project name
+  chats: Chat[];
+}
+
+export type SearchResults = SearchResult[];
