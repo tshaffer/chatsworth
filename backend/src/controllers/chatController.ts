@@ -1,7 +1,8 @@
 // controllers/chatController.ts
 import { Request, Response } from 'express';
 import { ProjectModel } from '../models/Project';
-import { Project, Chat } from '../types'; // Adjust path to where your types are defined
+import { Project, Chat, ChatEntry } from '../types'; // Adjust path to where your types are defined
+import { ChatEntryModel } from '../models/ChatEntry';
 
 interface RenameOrMoveChatBody {
   newTitle?: string;
@@ -84,30 +85,42 @@ export const deleteChat = async (req: Request, res: Response) => {
   }
 };
 
+
+
 export const exportChat = async (
   req: Request<{ chatId: string }>,
   res: Response
 ): Promise<void> => {
-
   const { chatId } = req.params;
-  const project: Project = await ProjectModel.findOne({ 'chats.id': chatId }).lean();
+
+  // Find the project that contains this chat
+  const project = await ProjectModel.findOne({ 'chats.id': chatId }).lean();
 
   if (!project) {
     res.status(404).send('Chat not found');
+    return;
   }
 
-  const chat: Chat = project.chats.find(c => c.id === chatId);
+  const chat: Chat | undefined = project.chats.find((c: Chat) => c.id === chatId);
+
   if (!chat) {
     res.status(404).send('Chat not found');
+    return;
   }
+
+  // Fetch associated ChatEntry documents from the DB
+  const entries = await ChatEntryModel.find({ chatId }).sort({ position: 1 }).lean();
 
   let markdown = `# ${chat.title}\n\n`;
+
   if (chat.metadata) {
+    markdown += `**User:** ${chat.metadata.user || ''}\n`;
     markdown += `**Created:** ${chat.metadata.created || ''}\n`;
-    markdown += `**Updated:** ${chat.metadata.updated || ''}\n\n`;
+    markdown += `**Updated:** ${chat.metadata.updated || ''}\n`;
+    markdown += `**Exported:** ${new Date().toISOString()}\n\n`;
   }
 
-  chat.entries.forEach(entry => {
+  entries.forEach((entry: ChatEntry, idx: number) => {
     markdown += `## Prompt:\n${entry.originalPrompt}\n\n`;
     markdown += `**Summary:** ${entry.promptSummary}\n\n`;
     markdown += `**Response:**\n${entry.response}\n\n`;

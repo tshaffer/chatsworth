@@ -2,9 +2,10 @@ use chatsworth;
 
 const collections = [
   "projects",
+  "chatentries",
 ];
 
-const outputDir = "/Users/tedshaffer/Documents/MongoDBBackups/chatsworth/backup-07-24-1";
+const outputDir = "/Users/tedshaffer/Documents/MongoDBBackups/chatsworth/backup-07-25-2";
 
 const fs = require("fs");
 

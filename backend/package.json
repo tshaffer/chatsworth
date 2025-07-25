@@ -4,6 +4,7 @@
   "description": "backend for chatsworth",
   "main": "index.js",
   "dependencies": {
+    "@pinecone-database/pinecone": "^6.1.2",
     "axios": "^1.4.0",
     "body-parser": "^1.20.3",
     "cors": "^2.8.5",
@@ -12,6 +13,7 @@
     "markdown-it": "^14.1.0",
     "mongoose": "^5.13.22",
     "multer": "^1.4.5-lts.1",
+    "openai": "^5.10.2",
     "uuid": "^9.0.1"
   },
   "devDependencies": {

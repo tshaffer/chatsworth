@@ -19,18 +19,44 @@ export interface MarkdownMetadata {
   exported: string;
 }
 
-// A single chat (e.g., a markdown file or a conversation session)
 export interface Chat {
-  id: string; // unique identifier, e.g., filename or UUID
-  title: string; // often same as metadata.title
-  metadata: MarkdownMetadata | null;
-  entries: ChatEntry[];
+  id: string;
+  title: string;
+  metadata?: MarkdownMetadata;
 }
 
 // A single prompt/response pair
 export interface ChatEntry {
-  originalPrompt: string,
-  promptSummary: string,
+  _id?: string; // optional for creating new entries, present when loaded from DB
+  chatId: string;
+  projectId: string;
+  originalPrompt: string;
+  promptSummary: string;
   response: string;
+  position?: number; // optional, used to determine order within the chat
+  embedding?: number[]; // optional, if vector embedding is used
 }
 
+export interface SemanticSearchResultEntry {
+  _id: string;
+  chatId: string;
+  projectId: string;
+  originalPrompt: string;
+  promptSummary: string;
+  response: string;
+  // Include other fields from ChatEntry if needed
+}
+
+export interface SemanticSearchResultChat {
+  chatId: string;
+  chatTitle: string;
+  entries: SemanticSearchResultEntry[];
+}
+
+export interface SemanticSearchResultProject {
+  projectId: string;
+  projectName: string;
+  chats: SemanticSearchResultChat[];
+}
+
+export type SemanticSearchResults = SemanticSearchResultProject[];

@@ -30,11 +30,14 @@ export interface Chat {
   entries: ChatEntry[];
 }
 
-// A single prompt/response pair
 export interface ChatEntry {
-  originalPrompt: string,
-  promptSummary: string,
+  _id: string;
+  projectId: string;
+  chatId: string;
+  originalPrompt: string;
+  promptSummary: string;
   response: string;
+  embedding?: number[]; // vector representation for semantic search
 }
 
 export interface SearchResult {
@@ -44,3 +47,27 @@ export interface SearchResult {
 }
 
 export type SearchResults = SearchResult[];
+
+export interface SemanticSearchResultEntry {
+  _id: string;
+  chatId: string;
+  projectId: string;
+  originalPrompt: string;
+  promptSummary: string;
+  response: string;
+  // Include other fields from ChatEntry if needed
+}
+
+export interface SemanticSearchResultChat {
+  chatId: string;
+  chatTitle: string;
+  entries: SemanticSearchResultEntry[];
+}
+
+export interface SemanticSearchResultProject {
+  projectId: string;
+  projectName: string;
+  chats: SemanticSearchResultChat[];
+}
+
+export type SemanticSearchResults = SemanticSearchResultProject[];

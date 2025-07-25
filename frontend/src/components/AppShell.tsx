@@ -1,6 +1,6 @@
-// components/AppShell.tsx
+// AppShell.tsx
 import React, { useEffect, useState } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import {
   Box,
   CssBaseline,
@@ -14,14 +14,21 @@ import ProjectList from './ProjectList';
 import ChatView from './ChatView';
 import SearchBar from './SearchBar';
 import { fetchProjects } from '../redux/projectsSlice';
-import { AppDispatch } from '../redux/store';
+import { AppDispatch, RootState } from '../redux/store';
+import axios from 'axios';
+import {
+  SemanticSearchResults,
+  SemanticSearchResultProject,
+} from '../types';
 
 const drawerWidth = 444;
 
 const AppShell: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const [searchQuery, setSearchQuery] = useState<string | null>(null);
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchMode, setSearchMode] = useState<'fulltext' | 'semantic'>('fulltext');
+  const [semanticResults, setSemanticResults] = useState<SemanticSearchResults | null>(null);
+  const selectedChatId = useSelector((state: RootState) => state.projects.selectedChatId);
 
   useEffect(() => {
     dispatch(fetchProjects());
@@ -29,19 +36,24 @@ const AppShell: React.FC = () => {
 
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
-    try {
-      const response = await fetch(`/api/v1/search?query=${encodeURIComponent(query)}`);
-      const data = await response.json();
-      setSearchResults(data);
-    } catch (err) {
-      console.error('Search failed:', err);
-      setSearchResults([]);
+
+    if (searchMode === 'fulltext') {
+      setSemanticResults(null); // Reset
+    } else {
+      try {
+        const response = await axios.post('/api/v1/semantic-search', { query });
+        const data: { results: SemanticSearchResults } = response.data;
+        setSemanticResults(data.results);
+      } catch (err) {
+        console.error('Semantic search error:', err);
+        setSemanticResults(null);
+      }
     }
   };
 
   const handleClearSearch = () => {
     setSearchQuery(null);
-    setSearchResults([]);
+    setSemanticResults(null);
   };
 
   return (
@@ -66,7 +78,7 @@ const AppShell: React.FC = () => {
       >
         <Toolbar />
         <Box sx={{ overflow: 'auto' }}>
-          <ProjectList searchQuery={searchQuery}/>
+          <ProjectList searchQuery={searchQuery} semanticResults={semanticResults} />
         </Box>
       </Drawer>
 
@@ -75,10 +87,9 @@ const AppShell: React.FC = () => {
         sx={{
           flexGrow: 1,
           p: 3,
-          paddingTop: '164px', // AppBar + fixed SearchBar
+          paddingTop: '164px',
         }}
       >
-        {/* Fixed SearchBar */}
         <Box
           sx={{
             position: 'fixed',
@@ -96,11 +107,13 @@ const AppShell: React.FC = () => {
             onSearch={handleSearch}
             onClear={handleClearSearch}
             query={searchQuery ?? ''}
+            mode={searchMode}
+            onModeChange={setSearchMode}
           />
           <Divider sx={{ mt: 1 }} />
         </Box>
 
-        <ChatView searchQuery={searchQuery}/>
+        <ChatView selectedChatId={selectedChatId} searchQuery={searchQuery} semanticResults={semanticResults} />
       </Box>
     </Box>
   );
