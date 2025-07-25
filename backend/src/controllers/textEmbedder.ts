@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Configuration, OpenAIApi } from 'openai';
+import { ChatEntryModel } from '../models';
 
 const openai = new OpenAIApi(new Configuration({ apiKey: process.env.OPENAI_API_KEY }));
 
