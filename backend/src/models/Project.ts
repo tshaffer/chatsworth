@@ -1,17 +1,6 @@
 // models/Project.ts
 import mongoose from 'mongoose';
 
-// This schema is now used only for nested storage within Project (optional)
-const EmbeddedChatEntrySchema = new mongoose.Schema({
-  originalPrompt: String,
-  promptSummary: String,
-  response: String,
-  embedding: {
-    type: [Number], // 1536 floats for text-embedding-3-small
-    default: undefined,
-  },
-}, { _id: false });
-
 const ChatSchema = new mongoose.Schema({
   id: String,
   title: String,
@@ -22,7 +11,6 @@ const ChatSchema = new mongoose.Schema({
     updated: String,
     exported: String,
   },
-  entries: [EmbeddedChatEntrySchema], // still nested here for now
 }, { _id: false });
 
 const ProjectSchema = new mongoose.Schema({
@@ -31,12 +19,9 @@ const ProjectSchema = new mongoose.Schema({
   chats: [ChatSchema],
 });
 
-// Full-text index for traditional keyword search
+// Full-text index (if you still want text search on titles)
 ProjectSchema.index({
   'chats.title': 'text',
-  'chats.entries.originalPrompt': 'text',
-  'chats.entries.promptSummary': 'text',
-  'chats.entries.response': 'text',
 });
 
 export const ProjectModel = mongoose.model('Project', ProjectSchema);
