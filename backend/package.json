@@ -4,6 +4,7 @@
   "description": "backend for chatsworth",
   "main": "index.js",
   "dependencies": {
+    "@pinecone-database/pinecone": "^6.1.2",
     "axios": "^1.4.0",
     "body-parser": "^1.20.3",
     "cors": "^2.8.5",
