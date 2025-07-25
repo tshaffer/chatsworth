@@ -6,17 +6,21 @@ import { pinecone } from '../pineconeClient';
 import { ChatEntryModel } from '../models/ChatEntry';
 
 async function connectDB() {
-  if (!process.env.MONGO_URI) throw new Error('Missing MONGO_URI');
-  await mongoose.connect(process.env.MONGO_URI);
+  const uri = process.env.MONGO_URI;
+  if (!uri) throw new Error('Missing MONGO_URI');
+  await mongoose.connect(uri);
 }
 
 async function upsertChatEntries() {
-  const index = pinecone.index(process.env.PINECONE_INDEX_NAME!, process.env.PINECONE_ENVIRONMENT!);
+  const index = pinecone.index(
+    process.env.PINECONE_INDEX_NAME!,
+    process.env.PINECONE_ENVIRONMENT!
+  );
 
   const entries = await ChatEntryModel.find();
-  console.log(`Uploading ${entries.length} entries to Pinecone...`);
+  console.log(`🔄 Uploading ${entries.length} entries to Pinecone...`);
 
-  const vectors = entries.map((entry: typeof entries[0]) => ({
+  const vectors = entries.map((entry: any) => ({
     id: entry._id.toString(),
     metadata: {
       chatId: entry.chatId,
@@ -27,7 +31,6 @@ async function upsertChatEntries() {
       .join('\n'),
   }));
 
-  // Upsert in batches
   const batchSize = 100;
   for (let i = 0; i < vectors.length; i += batchSize) {
     const batch = vectors.slice(i, i + batchSize);
@@ -45,4 +48,3 @@ connectDB()
     console.error('❌ Error during upsert:', err);
     process.exit(1);
   });
-
