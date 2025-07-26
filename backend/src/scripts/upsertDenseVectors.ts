@@ -1,14 +1,20 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-import { Pinecone } from '@pinecone-database/pinecone'
+import mongoose from 'mongoose';
+import { IndexStatsDescription, Pinecone } from '@pinecone-database/pinecone'
+import { ChatEntryModel } from '../models';
 
-const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
+async function connectDB() {
+  const uri = process.env.MONGO_URI;
+  if (!uri) throw new Error('Missing MONGO_URI');
+  await mongoose.connect(uri, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  } as any);
+  console.log('MongoDB connected.'); // Add this for clarity
+}
 
-// To get the unique host for an index, 
-// see https://docs.pinecone.io/guides/manage-data/target-an-index
-const index = pinecone.index("chatsworth-chatentries-2", process.env.PINECONE_INDEX_HOST)
-console.log('index 0', index);
 
 const records = [
   {
@@ -33,28 +39,38 @@ const records = [
   }
 ]
 
-async function main() {
+async function upsertChatEntries() {
+  const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
+  const index = pinecone.index(process.env.PINECONE_INDEX_NAME, process.env.PINECONE_INDEX_HOST)
+  const stats: IndexStatsDescription = await (index.describeIndexStats());
+  console.log('dimension:', stats.dimension);
 
-  // const indexName = 'chatsworth-chatentries';
-  // const index = pinecone.index(indexName).namespace("example-namespace");
-  console.log('index 1', index);
+  const entries = await ChatEntryModel.find();
+  console.log(`Uploading ${entries.length} entries to Pinecone...`);
+
+}
+
+async function main() {
+  
+  await (upsertChatEntries());
+
+  process.exit(0);
+  const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
+
+  const index = pinecone.index("chatsworth-chatentries-2", process.env.PINECONE_INDEX_HOST)
+  const stats: IndexStatsDescription = await (index.describeIndexStats());
+  console.log('dimension:', stats.dimension);
 
   index.upsert(records).then(() => {
     console.log('Records upserted successfully');
   }).catch(err => {
     console.error('Error upserting records:', err);
   });
-
-  const foo = index.namespace('example-namespace');
-
-  // foo.upsert(records).then(() => {
-  //   console.log('Records upserted successfully');
-  // }).catch(err => {
-  //   console.error('Error upserting records:', err);
-  // });
-  // const index = pinecone.index('chatsworth-chatentries-1').namespace('example-namespace')
-  // index.upsert(records);
 }
 
-main();
-console.log('return from main');
+
+connectDB()
+  .then(() => {
+    console.log('Database connected successfully.');
+    main();
+  });
