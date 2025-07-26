@@ -22,10 +22,57 @@ async function upsertChatEntries() {
   console.log(`Uploading ${entries.length} entries to Pinecone...`);
 }
 
+async function runUpsertChatsworthToPinecone() {
+  try {
+
+    const apiKey = process.env.PINECONE_API_KEY;
+    if (!apiKey) {
+      console.error('Error: PINECONE_API_KEY is not set in .env');
+      process.exit(1);
+    }
+    console.log('apiKey:', apiKey);
+
+    const pinecone = new Pinecone({
+      apiKey: apiKey,
+    });
+    console.log('Main Pinecone client initialized.');
+
+    const indexName = 'chatsworth-chatentries';
+    // Target the index
+    const index = pinecone.index(indexName).namespace("example-namespace");
+    console.log('index', index);
+
+    // const apiKey = process.env.PINECONE_API_KEY;
+    // const pineconeIndexHost = process.env.PINECONE_INDEX_HOST;
+
+    // console.log('--- Minimal Pinecone Upsert Test ---');
+    // console.log('API Key:', apiKey ? 'Loaded' : 'MISSING');
+    // console.log('Index Host:', pineconeIndexHost ? pineconeIndexHost : 'MISSING');
+
+    // if (!pineconeIndexHost) {
+    //   console.error('Error: PINECONE_INDEX_HOST is not set in .env');
+    //   process.exit(1);
+    // }
+
+
+    // const index = pinecone.Index(pineconeIndexHost);
+    // console.log('Pinecone index client obtained using host:', pineconeIndexHost);
+    // console.log('index', index);
+
+  } catch (error) {
+    console.error('❌ Error during minimal upsert test:', error);
+  } finally {
+    console.log('--- Test Finished ---');
+    process.exit(0);
+  }
+};
+
 connectDB()
-  .then(() => {
-    upsertChatEntries();
-    console.log('Chat entries upserted successfully.');
+  .then(async () => {
+    // upsertChatEntries();
+    // console.log('Chat entries upserted successfully.');
+    await runUpsertChatsworthToPinecone();
+    console.log('Test completed successfully.');
     process.exit(0);
   })
   .catch((err) => {
