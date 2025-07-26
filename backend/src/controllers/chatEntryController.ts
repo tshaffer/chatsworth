@@ -34,102 +34,118 @@ export const getChatEntries = async (req: Request, res: Response): Promise<void>
 };
 
 export const updateChatEntryPromptSummary = async (
-  req: Request<ChatEntryParams, {}, UpdateChatEntryBody>,
+  req: Request<any, {}, UpdateChatEntryBody>,
   res: Response
 ): Promise<void> => {
-  const { chatId, entryIndex } = req.params;
+
+  const { id } = req.params;
   const { promptSummary } = req.body;
+  await ChatEntryModel.findByIdAndUpdate(id, { promptSummary });
+  res.sendStatus(204);
 
-  const project: Document & ProjectType | null = await ProjectModel.findOne({ 'chats.id': chatId });
-  if (!project) {
-    res.status(404).json({ error: 'Chat not found' });
-    return;
-  }
+  // const { chatId, entryIndex } = req.params;
+  // const { promptSummary } = req.body;
 
-  const chat: Chat | undefined = project.chats.find((c) => c.id === chatId);
-  if (!chat) {
-    res.status(404).json({ error: 'Chat not found in project' });
-    return;
-  }
+  // const project: Document & ProjectType | null = await ProjectModel.findOne({ 'chats.id': chatId });
+  // if (!project) {
+  //   res.status(404).json({ error: 'Chat not found' });
+  //   return;
+  // }
 
-  const index = Number(entryIndex);
-  if (isNaN(index) || index < 0 || index >= chat.entries.length) {
-    res.status(404).json({ error: 'ChatEntry not found' });
-    return;
-  }
+  // const chat: Chat | undefined = project.chats.find((c) => c.id === chatId);
+  // if (!chat) {
+  //   res.status(404).json({ error: 'Chat not found in project' });
+  //   return;
+  // }
 
-  if (promptSummary !== undefined) {
-    chat.entries[index].promptSummary = promptSummary;
-  }
+  // const index = Number(entryIndex);
+  // if (isNaN(index) || index < 0 || index >= chat.entries.length) {
+  //   res.status(404).json({ error: 'ChatEntry not found' });
+  //   return;
+  // }
 
-  await project.save();
-  res.json({ message: 'ChatEntry updated' });
+  // if (promptSummary !== undefined) {
+  //   chat.entries[index].promptSummary = promptSummary;
+  // }
+
+  // await project.save();
+  // res.json({ message: 'ChatEntry updated' });
 };
 
 export const updateChatEntryOriginalPrompt = async (
-  req: Request<ChatEntryParams, {}, any>,
+  req: Request<any, {}, any>,
   res: Response
 ): Promise<void> => {
-  const { chatId, entryIndex } = req.params;
+  const { id } = req.params;
   const { originalPrompt } = req.body;
+  await ChatEntryModel.findByIdAndUpdate(id, { originalPrompt });
+  res.sendStatus(204);
 
-  const project: Document & ProjectType | null = await ProjectModel.findOne({ 'chats.id': chatId });
-  if (!project) {
-    res.status(404).json({ error: 'Chat not found' });
-    return;
-  }
+  // const { chatId, entryIndex } = req.params;
+  // const { originalPrompt } = req.body;
 
-  const chat: Chat | undefined = project.chats.find((c) => c.id === chatId);
-  if (!chat) {
-    res.status(404).json({ error: 'Chat not found in project' });
-    return;
-  }
+  // const project: Document & ProjectType | null = await ProjectModel.findOne({ 'chats.id': chatId });
+  // if (!project) {
+  //   res.status(404).json({ error: 'Chat not found' });
+  //   return;
+  // }
 
-  const index = Number(entryIndex);
-  if (isNaN(index) || index < 0 || index >= chat.entries.length) {
-    res.status(404).json({ error: 'ChatEntry not found' });
-    return;
-  }
+  // const chat: Chat | undefined = project.chats.find((c) => c.id === chatId);
+  // if (!chat) {
+  //   res.status(404).json({ error: 'Chat not found in project' });
+  //   return;
+  // }
 
-  if (originalPrompt !== undefined) {
-    chat.entries[index].originalPrompt = originalPrompt;
-  }
+  // const index = Number(entryIndex);
+  // if (isNaN(index) || index < 0 || index >= chat.entries.length) {
+  //   res.status(404).json({ error: 'ChatEntry not found' });
+  //   return;
+  // }
 
-  await project.save();
-  res.json({ message: 'ChatEntry updated' });
+  // if (originalPrompt !== undefined) {
+  //   chat.entries[index].originalPrompt = originalPrompt;
+  // }
+
+  // await project.save();
+  // res.json({ message: 'ChatEntry updated' });
 };
 
 export const updateChatEntryResponse = async (
-  req: Request<ChatEntryParams, {}, any>,
+  req: Request<any, {}, any>,
   res: Response
 ): Promise<void> => {
-  const { chatId, entryIndex } = req.params;
+  const { id } = req.params;
   const { response } = req.body;
+  await ChatEntryModel.findByIdAndUpdate(id, { response });
+  res.sendStatus(204);
 
-  const project: Document & ProjectType | null = await ProjectModel.findOne({ 'chats.id': chatId });
-  if (!project) {
-    res.status(404).json({ error: 'Chat not found' });
-    return;
-  }
+  // const { chatId, entryIndex } = req.params;
+  // const { response } = req.body;
 
-  const chat: Chat | undefined = project.chats.find((c) => c.id === chatId);
-  if (!chat) {
-    res.status(404).json({ error: 'Chat not found in project' });
-    return;
-  }
+  // const project: Document & ProjectType | null = await ProjectModel.findOne({ 'chats.id': chatId });
+  // if (!project) {
+  //   res.status(404).json({ error: 'Chat not found' });
+  //   return;
+  // }
 
-  const index = Number(entryIndex);
-  if (isNaN(index) || index < 0 || index >= chat.entries.length) {
-    res.status(404).json({ error: 'ChatEntry not found' });
-    return;
-  }
+  // const chat: Chat | undefined = project.chats.find((c) => c.id === chatId);
+  // if (!chat) {
+  //   res.status(404).json({ error: 'Chat not found in project' });
+  //   return;
+  // }
 
-  if (response !== undefined) {
-    chat.entries[index].response = response;
-  }
+  // const index = Number(entryIndex);
+  // if (isNaN(index) || index < 0 || index >= chat.entries.length) {
+  //   res.status(404).json({ error: 'ChatEntry not found' });
+  //   return;
+  // }
 
-  await project.save();
-  res.json({ message: 'ChatEntry updated' });
+  // if (response !== undefined) {
+  //   chat.entries[index].response = response;
+  // }
+
+  // await project.save();
+  // res.json({ message: 'ChatEntry updated' });
 };
 
 // export const updateChatEntryOriginalPrompt = async (
@@ -177,33 +193,37 @@ export const updateChatEntryResponse = async (
 // };
 
 export const deleteChatEntry = async (
-  req: Request<ChatEntryParams>,
+  req: Request<any>,
   res: Response
 ): Promise<void> => {
-  const { chatId, entryIndex } = req.params;
+  const { id } = req.params;
+  await ChatEntryModel.findByIdAndDelete(id);
+  res.sendStatus(204);
+  
+  // const { chatId, entryIndex } = req.params;
 
-  const project: Document & ProjectType | null = await ProjectModel.findOne({ 'chats.id': chatId });
-  if (!project) {
-    res.status(404).json({ error: 'Chat not found' });
-    return;
-  }
+  // const project: Document & ProjectType | null = await ProjectModel.findOne({ 'chats.id': chatId });
+  // if (!project) {
+  //   res.status(404).json({ error: 'Chat not found' });
+  //   return;
+  // }
 
-  const chat: Chat | undefined = project.chats.find((c) => c.id === chatId);
-  if (!chat) {
-    res.status(404).json({ error: 'Chat not found in project' });
-    return;
-  }
+  // const chat: Chat | undefined = project.chats.find((c) => c.id === chatId);
+  // if (!chat) {
+  //   res.status(404).json({ error: 'Chat not found in project' });
+  //   return;
+  // }
 
-  const index = Number(entryIndex);
-  if (isNaN(index) || index < 0 || index >= chat.entries.length) {
-    res.status(404).json({ error: 'ChatEntry not found' });
-    return;
-  }
+  // const index = Number(entryIndex);
+  // if (isNaN(index) || index < 0 || index >= chat.entries.length) {
+  //   res.status(404).json({ error: 'ChatEntry not found' });
+  //   return;
+  // }
 
-  chat.entries.splice(index, 1);
-  await project.save();
+  // chat.entries.splice(index, 1);
+  // await project.save();
 
-  res.json({ message: 'ChatEntry deleted' });
+  // res.json({ message: 'ChatEntry deleted' });
 };
 
 export const reorderChatEntries = async (req: Request, res: Response) => {

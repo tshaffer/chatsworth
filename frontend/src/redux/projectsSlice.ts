@@ -84,41 +84,41 @@ export const persistReorderedChatEntries = createAsyncThunk<
 });
 
 export const updatePromptSummary = createAsyncThunk<
-  { chatId: string; entryIndex: number; promptSummary: string },
-  { chatId: string; entryIndex: number; promptSummary: string }
+  { chatEntryId: string; chatId: string; promptSummary: string },
+  { chatEntryId: string; chatId: string; promptSummary: string }
 >(
   'projects/updatePromptSummary',
-  async ({ chatId, entryIndex, promptSummary }) => {
-    await axios.patch(`/api/v1/chat-entries/promptSummary/${chatId}/${entryIndex}`, {
+  async ({ chatEntryId, chatId, promptSummary }) => {
+    await axios.patch(`/api/v1/chat-entries/promptSummary/${chatId}/${chatEntryId}`, {
       promptSummary,
     });
-    return { chatId, entryIndex, promptSummary };
+    return { chatId, chatEntryId, promptSummary };
   }
 );
 
 export const updateOriginalPrompt = createAsyncThunk<
-  { chatId: string; entryIndex: number; originalPrompt: string },
-  { chatId: string; entryIndex: number; originalPrompt: string }
+  { chatEntryId: string; chatId: string; originalPrompt: string },
+  { chatEntryId: string; chatId: string; originalPrompt: string }
 >(
   'projects/updateOriginalPrompt',
-  async ({ chatId, entryIndex, originalPrompt }) => {
-    await axios.patch(`/api/v1/chat-entries/originalPrompt/${chatId}/${entryIndex}`, {
+  async ({ chatEntryId, chatId, originalPrompt }) => {
+    await axios.patch(`/api/v1/chat-entries/originalPrompt/${chatId}/${chatEntryId}`, {
       originalPrompt,
     });
-    return { chatId, entryIndex, originalPrompt };
+    return { chatId, chatEntryId, originalPrompt };
   }
 );
 
 export const updateResponse = createAsyncThunk<
-  { chatId: string; entryIndex: number; response: string },
-  { chatId: string; entryIndex: number; response: string }
+  { chatEntryId: string; chatId: string; response: string },
+  { chatEntryId: string; chatId: string; response: string }
 >(
   'projects/updateResponse',
-  async ({ chatId, entryIndex, response }) => {
-    await axios.patch(`/api/v1/chat-entries/response/${chatId}/${entryIndex}`, {
+  async ({ chatEntryId, chatId, response }) => {
+    await axios.patch(`/api/v1/chat-entries/response/${chatId}/${chatEntryId}`, {
       response,
     });
-    return { chatId, entryIndex, response };
+    return { chatId, chatEntryId, response };
   }
 );
 
@@ -245,7 +245,7 @@ const projectsSlice = createSlice({
         }
       })
       .addCase(updatePromptSummary.fulfilled, (state, action) => {
-        const { chatId, entryIndex, promptSummary } = action.payload;
+        const { chatEntryId, chatId, promptSummary } = action.payload;
 
         for (const project of state.projectList) {
           const chat = project.chats.find((c) => c.id === chatId);

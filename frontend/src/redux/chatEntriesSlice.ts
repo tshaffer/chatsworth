@@ -33,6 +33,56 @@ export const fetchChatEntries = createAsyncThunk<
   return await response.json();
 });
 
+export const updatePromptSummary = createAsyncThunk<
+  void,
+  { chatEntryId: string; promptSummary: string; chatId: string },
+  { dispatch: AppDispatch }
+>('chatEntries/updatePromptSummary', async ({ chatEntryId, promptSummary, chatId }, { dispatch }) => {
+  await fetch(`/api/v1/chatEntries/${chatEntryId}/promptSummary`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ promptSummary }),
+  });
+  dispatch(fetchChatEntries(chatId));
+});
+
+export const updateOriginalPrompt = createAsyncThunk<
+  void,
+  { chatEntryId: string; originalPrompt: string; chatId: string },
+  { dispatch: AppDispatch }
+>('chatEntries/updateOriginalPrompt', async ({ chatEntryId, originalPrompt, chatId }, { dispatch }) => {
+  await fetch(`/api/v1/chatEntries/${chatEntryId}/originalPrompt`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ originalPrompt }),
+  });
+  dispatch(fetchChatEntries(chatId));
+});
+
+export const updateResponse = createAsyncThunk<
+  void,
+  { chatEntryId: string; response: string; chatId: string },
+  { dispatch: AppDispatch }
+>('chatEntries/updateResponse', async ({ chatEntryId, response, chatId }, { dispatch }) => {
+  await fetch(`/api/v1/chatEntries/${chatEntryId}/response`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ response }),
+  });
+  dispatch(fetchChatEntries(chatId));
+});
+
+export const deleteChatEntry = createAsyncThunk<
+  void,
+  { chatEntryId: string; chatId: string },
+  { dispatch: AppDispatch }
+>('chatEntries/deleteChatEntry', async ({ chatEntryId, chatId }, { dispatch }) => {
+  await fetch(`/api/v1/chatEntries/${chatEntryId}`, {
+    method: 'DELETE',
+  });
+  dispatch(fetchChatEntries(chatId));
+});
+
 const chatEntriesSlice = createSlice({
   name: 'chatEntries',
   initialState,

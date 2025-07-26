@@ -43,13 +43,12 @@ export const createRoutes = (app: express.Application) => {
   app.post('/api/v1/chats/:chatId/reorderEntries', reorderChatEntries);
 
   app.get('/api/v1/chatEntries', getChatEntries);
-  app.delete('/api/v1/chat-entries/:chatId/:entryIndex', deleteChatEntry);
   app.post('/api/v1/chat-entries/moveChat', moveChatEntry);
 
   app.patch('/api/v1/chat-entries/promptSummary/:chatId/:entryIndex', updateChatEntryPromptSummary);
   app.patch('/api/v1/chat-entries/originalPrompt/:chatId/:entryIndex', updateChatEntryOriginalPrompt);
   app.patch('/api/v1/chat-entries/response/:chatId/:entryIndex', updateChatEntryResponse);
-
+  app.delete('/api/v1/chat-entries/:chatId/:entryIndex', deleteChatEntry);
 
   // routes/projectRoutes.ts
   app.post('/api/v1/projects/moveChat', moveChatToProject);

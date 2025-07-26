@@ -209,8 +209,8 @@ const ChatView: React.FC<Props> = ({ searchQuery }) => {
                               onBlur={() => {
                                 if (!cancelRef.current && editValue.trim() !== entry.promptSummary) {
                                   dispatch(updatePromptSummary({
+                                    chatEntryId: entry._id,
                                     chatId: selectedChat.id,
-                                    entryIndex: index,
                                     promptSummary: editValue.trim(),
                                   }));
                                 }
@@ -326,8 +326,8 @@ const ChatView: React.FC<Props> = ({ searchQuery }) => {
                           onBlur={() => {
                             if (editValue.trim() !== entry.originalPrompt) {
                               dispatch(updateOriginalPrompt({
+                                chatEntryId: entry._id,
                                 chatId: selectedChat.id,
-                                entryIndex: index,
                                 originalPrompt: editValue.trim(),
                               }));
                             }
@@ -380,8 +380,8 @@ const ChatView: React.FC<Props> = ({ searchQuery }) => {
                           onBlur={() => {
                             if (editValue.trim() !== entry.response) {
                               dispatch(updateResponse({
+                                chatEntryId: entry._id,
                                 chatId: selectedChat.id,
-                                entryIndex: index,
                                 response: editValue.trim(),
                               }));
                             }
