@@ -1,8 +1,8 @@
-// testPineconeUpsert.ts
+// testUpsertToPinecone.ts
 import dotenv from 'dotenv';
 dotenv.config();
 
-import { Pinecone } from '@pinecone-database/pinecone'; // Make sure this import matches your pineconeClient.ts
+import { Pinecone } from '@pinecone-database/pinecone';
 
 async function runMinimalUpsertTest() {
   const apiKey = process.env.PINECONE_API_KEY;
@@ -21,7 +21,7 @@ async function runMinimalUpsertTest() {
     process.exit(1);
   }
 
-try {
+  try {
     const pinecone = new Pinecone({
       apiKey: apiKey,
     });
@@ -30,12 +30,10 @@ try {
     const index = pinecone.Index(pineconeIndexHost);
     console.log('Pinecone index client obtained using host:', pineconeIndexHost);
 
-    // Deep inspection of the index object
     console.log('--- Inspecting Index Object ---');
     console.log('Index Type:', index.constructor.name);
-    // Be careful with JSON.stringify on complex objects, it might throw or be very large
-    // console.log('Index Object (Partial):', JSON.stringify(index, getCircularReplacer(), 2)); 
-    console.log('Index Host (from object):', index.host); // This should be the same as pineconeIndexHost
+    // console.log('Index Object (Partial):', JSON.stringify(index, getCircularReplacer(), 2)); // Use with caution
+    // Removed: console.log('Index Host (from object):', index.host); // This line caused the TS error
     console.log('Index upsert method:', typeof index.upsert); // Should be 'function'
     console.log('--- End Index Object Inspection ---');
 
@@ -48,7 +46,7 @@ try {
       },
     };
 
-        console.log('Attempting to upsert test vector (ID):', testVector.id);
+    console.log('Attempting to upsert test vector (ID):', testVector.id);
     console.log('Attempting to upsert test vector (values length):', testVector.values.length);
     console.log('Attempting to upsert test vector (metadata):', JSON.stringify(testVector.metadata));
 
@@ -78,9 +76,3 @@ function getCircularReplacer() {
     return value;
   };
 }
-
-
-
-
-
-
