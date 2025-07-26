@@ -5,6 +5,7 @@ import { Chat, Project } from '../types'; // Adjust to match your types location
 import type { Document } from 'mongoose';
 
 import { Project as ProjectType } from '../types'; // Rename to avoid conflict with Mongoose model
+import { ChatEntryModel } from '../models';
 
 interface ChatEntryParams {
   chatId: string;
@@ -14,6 +15,23 @@ interface ChatEntryParams {
 interface UpdateChatEntryBody {
   promptSummary?: string;
 }
+
+export const getChatEntries = async (req: Request, res: Response): Promise<void> => {
+  const { chatId } = req.query;
+
+  if (!chatId || typeof chatId !== 'string') {
+    res.status(400).json({ error: 'chatId query parameter is required' });
+    return;
+  }
+
+  try {
+    const entries = await ChatEntryModel.find({ chatId }).sort({ _id: 1 }).lean();
+    res.json(entries);
+  } catch (err) {
+    console.error('Error fetching chat entries:', err);
+    res.status(500).json({ error: 'Failed to fetch chat entries' });
+  }
+};
 
 export const updateChatEntryPromptSummary = async (
   req: Request<ChatEntryParams, {}, UpdateChatEntryBody>,
