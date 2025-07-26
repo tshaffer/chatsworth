@@ -1,5 +1,5 @@
 // components/ChatView.tsx
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Typography,
   List,
@@ -16,14 +16,6 @@ import ExpandMore from '@mui/icons-material/ExpandMore';
 import ReactMarkdown from 'react-markdown';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../redux/store';
-import {
-  persistReorderedChatEntries,
-  updatePromptSummary,
-  deleteChatEntry,
-  moveChatEntry,
-  updateOriginalPrompt,
-  updateResponse,
-} from '../redux/projectsSlice';
 import DownloadIcon from '@mui/icons-material/Download';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
@@ -34,6 +26,8 @@ import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
 import MoveChatEntryDialog from './MoveChatEntryDialog';
 import { Chat } from '../types';
 import { selectProjectIdByChatId } from '../redux';
+import { selectChatEntries, selectChatEntriesLoading } from '../redux/selectors/chatEntriesSelectors';
+import { deleteChatEntry, fetchChatEntries, moveChatEntry, persistReorderedChatEntries, updateOriginalPrompt, updatePromptSummary, updateResponse } from '../redux/chatEntriesSlice';
 
 interface Props {
   searchQuery?: string | null;
@@ -46,6 +40,19 @@ const ChatView: React.FC<Props> = ({ searchQuery }) => {
   );
   const allProjects = useSelector((state: RootState) => state.projects.projectList);
   const dispatch = useDispatch<AppDispatch>();
+
+  const chatEntries = useSelector((state: RootState) =>
+    selectedChatId ? selectChatEntries(state, selectedChatId) : []
+  );
+  const loadingEntries = useSelector((state: RootState) =>
+    selectedChatId ? selectChatEntriesLoading(state, selectedChatId) : false
+  );
+
+  useEffect(() => {
+    if (selectedChatId) {
+      dispatch(fetchChatEntries(selectedChatId));
+    }
+  }, [dispatch, selectedChatId]);
 
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -88,17 +95,26 @@ const ChatView: React.FC<Props> = ({ searchQuery }) => {
   };
 
   const handleConfirmMove = (targetProjectId: string, targetChatId: string) => {
-    if (selectedChat && entryIndexToMove !== null) {
+    if (
+      selectedChat &&
+      entryIndexToMove !== null &&
+      entryIndexToMove >= 0 &&
+      entryIndexToMove < chatEntries.length
+    ) {
+      const entryToMove = chatEntries[entryIndexToMove];
+
       dispatch(
         moveChatEntry({
+          entryId: entryToMove._id,
           fromProjectId: selectedProjectId || '',
           fromChatId: selectedChat.id,
           toProjectId: targetProjectId,
           toChatId: targetChatId,
-          entryIndex: entryIndexToMove,
+          newIndex: 0, // or set to desired position
         })
       );
     }
+
     setMoveDialogOpen(false);
     setEntryIndexToMove(null);
   };
@@ -156,13 +172,17 @@ const ChatView: React.FC<Props> = ({ searchQuery }) => {
         </IconButton>
       </Box>
 
-      {selectedChat.entries.length === 0 ? (
+      {loadingEntries ? (
+        <Typography variant="body2" color="text.secondary">
+          Loading entries...
+        </Typography>
+      ) : chatEntries.length === 0 ? (
         <Typography variant="body2" color="text.secondary">
           No entries in this chat.
         </Typography>
       ) : (
         <List disablePadding>
-          {selectedChat.entries.map((entry, index) => {
+          {chatEntries.map((entry, index) => {
             const key = `${selectedChat.id}-${index}`;
             const expanded = expandedResponses[key] || false;
             const isEditing = editingIndex === index;
@@ -190,8 +210,8 @@ const ChatView: React.FC<Props> = ({ searchQuery }) => {
                               onBlur={() => {
                                 if (!cancelRef.current && editValue.trim() !== entry.promptSummary) {
                                   dispatch(updatePromptSummary({
+                                    chatEntryId: entry._id,
                                     chatId: selectedChat.id,
-                                    entryIndex: index,
                                     promptSummary: editValue.trim(),
                                   }));
                                 }
@@ -231,21 +251,37 @@ const ChatView: React.FC<Props> = ({ searchQuery }) => {
                               disabled={index === 0}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const newOrder = selectedChat.entries.map((_, i) => i);
-                                [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
-                                dispatch(persistReorderedChatEntries({ chatId: selectedChat.id, newOrder }));
+                                if (index > 0) {
+                                  const newOrder = [...chatEntries.map((entry) => entry._id)];
+                                  [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
+
+                                  dispatch(
+                                    persistReorderedChatEntries({
+                                      chatId: selectedChat.id,
+                                      newOrder,
+                                    })
+                                  );
+                                }
                               }}
                             >
                               <ArrowUpwardIcon fontSize="small" />
                             </IconButton>
                             <IconButton
                               size="small"
-                              disabled={index === selectedChat.entries.length - 1}
+                              disabled={index === chatEntries.length - 1}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const newOrder = selectedChat.entries.map((_, i) => i);
-                                [newOrder[index + 1], newOrder[index]] = [newOrder[index], newOrder[index + 1]];
-                                dispatch(persistReorderedChatEntries({ chatId: selectedChat.id, newOrder }));
+                                if (index < chatEntries.length - 1) {
+                                  const newOrder = [...chatEntries.map((entry) => entry._id)];
+                                  [newOrder[index + 1], newOrder[index]] = [newOrder[index], newOrder[index + 1]];
+
+                                  dispatch(
+                                    persistReorderedChatEntries({
+                                      chatId: selectedChat.id,
+                                      newOrder,
+                                    })
+                                  );
+                                }
                               }}
                             >
                               <ArrowDownwardIcon fontSize="small" />
@@ -276,7 +312,7 @@ const ChatView: React.FC<Props> = ({ searchQuery }) => {
                                 e.stopPropagation();
                                 const confirmed = window.confirm('Delete this entry?');
                                 if (confirmed) {
-                                  dispatch(deleteChatEntry({ chatId: selectedChat.id, entryIndex: index }));
+                                  dispatch(deleteChatEntry({ chatEntryId: entry._id, chatId: selectedChat.id }));
                                 }
                               }}
                             >
@@ -307,8 +343,8 @@ const ChatView: React.FC<Props> = ({ searchQuery }) => {
                           onBlur={() => {
                             if (editValue.trim() !== entry.originalPrompt) {
                               dispatch(updateOriginalPrompt({
+                                chatEntryId: entry._id,
                                 chatId: selectedChat.id,
-                                entryIndex: index,
                                 originalPrompt: editValue.trim(),
                               }));
                             }
@@ -361,8 +397,8 @@ const ChatView: React.FC<Props> = ({ searchQuery }) => {
                           onBlur={() => {
                             if (editValue.trim() !== entry.response) {
                               dispatch(updateResponse({
+                                chatEntryId: entry._id,
                                 chatId: selectedChat.id,
-                                entryIndex: index,
                                 response: editValue.trim(),
                               }));
                             }

@@ -1,16 +1,12 @@
-import { ChatEntry, MarkdownMetadata, ProjectsState } from '../types';
-import MarkdownIt from 'markdown-it';
+import { ChatEntry, MarkdownMetadata } from '../types';
 
-export function extractChatEntriesPreservingMarkdown(markdownText: string): ChatEntry[] {
-  const md = new MarkdownIt();
-  const tokens = md.parse(markdownText, {});
-  const chatEntries: ChatEntry[] = [];
+export function extractChatEntriesPreservingMarkdown(markdownText: string): Omit<ChatEntry, 'chatId' | 'projectId'>[] {
+  const chatEntries: Omit<ChatEntry, 'chatId' | 'projectId'>[] = [];
 
   let currentPrompt: string | null = null;
   let currentResponse: string | null = null;
   let collecting: 'prompt' | 'response' | null = null;
 
-  // Collect original markdown lines
   const lines = markdownText.split('\n');
   let i = 0;
 
@@ -18,21 +14,25 @@ export function extractChatEntriesPreservingMarkdown(markdownText: string): Chat
     const line = lines[i].trim();
 
     if (/^##\s*prompt:/i.test(line)) {
-      // Save previous entry if valid
       if (currentPrompt !== null && currentResponse !== null) {
-        chatEntries.push({ originalPrompt: currentPrompt.trim(), promptSummary: currentPrompt.trim(), response: currentResponse.trim() });
+        chatEntries.push({
+          originalPrompt: currentPrompt.trim(),
+          promptSummary: currentPrompt.trim(),
+          response: currentResponse.trim(),
+          position: chatEntries.length,
+        });
       }
       currentPrompt = '';
       currentResponse = null;
       collecting = 'prompt';
-      i++; // Skip current "Prompt:" line
+      i++;
       continue;
     }
 
     if (/^##\s*response:/i.test(line)) {
       currentResponse = '';
       collecting = 'response';
-      i++; // Skip current "Response:" line
+      i++;
       continue;
     }
 
@@ -47,7 +47,12 @@ export function extractChatEntriesPreservingMarkdown(markdownText: string): Chat
 
   // Final entry
   if (currentPrompt !== null && currentResponse !== null) {
-    chatEntries.push({ originalPrompt: currentPrompt.trim(), promptSummary: currentPrompt.trim(), response: currentResponse.trim() });
+    chatEntries.push({
+      originalPrompt: currentPrompt.trim(),
+      promptSummary: currentPrompt.trim(),
+      response: currentResponse.trim(),
+      position: chatEntries.length,
+    });
   }
 
   return chatEntries;
@@ -63,7 +68,7 @@ export function extractMarkdownMetadata(markdownText: string): MarkdownMetadata 
   const exportedLine = lines.find(line => line.toLowerCase().startsWith('**exported:**'));
 
   if (!titleMatch || !userLine || !createdLine || !updatedLine || !exportedLine) {
-    return null; // Required metadata is missing
+    return null;
   }
 
   return {

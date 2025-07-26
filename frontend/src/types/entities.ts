@@ -30,10 +30,12 @@ export interface Chat {
   entries: ChatEntry[];
 }
 
-// A single prompt/response pair
 export interface ChatEntry {
-  originalPrompt: string,
-  promptSummary: string,
+  _id: string;
+  projectId: string;
+  chatId: string;
+  originalPrompt: string;
+  promptSummary: string;
   response: string;
 }
 

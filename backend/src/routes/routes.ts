@@ -5,6 +5,7 @@ import {
   deleteChatEntry,
   deleteProject,
   exportChat,
+  getChatEntries,
   getVersion,
   markdownImporterEndpoint,
   moveChatEntry,
@@ -39,16 +40,16 @@ export const createRoutes = (app: express.Application) => {
   app.get('/api/v1/chats/:chatId/export', exportChat);
   app.patch('/api/v1/chats/:chatId', renameOrMoveChat);
   app.delete('/api/v1/projects/:projectId/chats/:chatId', deleteChat);
+
+  app.get('/api/v1/chatEntries', getChatEntries);
+  app.post('/api/v1/chat-entries/moveChat', moveChatEntry);
   app.post('/api/v1/chats/:chatId/reorderEntries', reorderChatEntries);
 
-  app.patch('/api/v1/chat-entries/promptSummary/:chatId/:entryIndex', updateChatEntryPromptSummary);
-  app.patch('/api/v1/chat-entries/originalPrompt/:chatId/:entryIndex', updateChatEntryOriginalPrompt);
-  app.patch('/api/v1/chat-entries/response/:chatId/:entryIndex', updateChatEntryResponse);
+  app.patch('/api/v1/chatEntries/:id/promptSummary', updateChatEntryPromptSummary);
+  app.patch('/api/v1/chatEntries/:id/originalPrompt', updateChatEntryOriginalPrompt);
+  app.patch('/api/v1/chatEntries/:id/response', updateChatEntryResponse);
+  app.delete('/api/v1/chatEntries/:id', deleteChatEntry);
 
-  app.delete('/api/v1/chat-entries/:chatId/:entryIndex', deleteChatEntry);
-  app.post('/api/v1/chat-entries/moveChat', moveChatEntry);
-
-  // routes/projectRoutes.ts
   app.post('/api/v1/projects/moveChat', moveChatToProject);
 
 };

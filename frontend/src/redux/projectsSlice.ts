@@ -1,14 +1,13 @@
 // redux/projectsSlice.ts
-import { createAsyncThunk } from '@reduxjs/toolkit';
+import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import axios from 'axios';
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { Chat, MoveChatEntryBody, Project, ProjectsState } from '../types';
 
 export const fetchProjects = createAsyncThunk(
   'projects/fetchProjects',
   async () => {
     const response = await axios.get('/api/v1/projects');
-    return response.data.projectList; // ✅ unwrap the data
+    return response.data.projectList;
   }
 );
 
@@ -24,12 +23,9 @@ export const createProject = createAsyncThunk(
   }
 );
 
-export const renameProject = createAsyncThunk<
-  { projectId: string; name: string },
-  { projectId: string; name: string }
->(
+export const renameProject = createAsyncThunk(
   'projects/renameProject',
-  async ({ projectId, name }) => {
+  async ({ projectId, name }: { projectId: string; name: string }) => {
     await axios.patch(`/api/v1/projects/${projectId}`, { name });
     return { projectId, name };
   }
@@ -54,17 +50,14 @@ export const persistReorderedChats = createAsyncThunk<
 export const renameChat = createAsyncThunk<
   { chatId: string; title: string },
   { chatId: string; title: string }
->(
-  'projects/renameChat',
-  async ({ chatId, title }) => {
-    await axios.patch(`/api/v1/chats/${chatId}`, { newTitle: title });
-    return { chatId, title }; // still return title for local Redux update
-  }
-);
+>('projects/renameChat', async ({ chatId, title }) => {
+  await axios.patch(`/api/v1/chats/${chatId}`, { newTitle: title });
+  return { chatId, title };
+});
 
 export const deleteChat = createAsyncThunk(
   'projects/deleteChat',
-  async ({ projectId, chatId }: { projectId: string, chatId: string }, thunkAPI) => {
+  async ({ projectId, chatId }: { projectId: string; chatId: string }, thunkAPI) => {
     try {
       await axios.delete(`/api/v1/projects/${projectId}/chats/${chatId}`);
       return { projectId, chatId };
@@ -75,103 +68,30 @@ export const deleteChat = createAsyncThunk(
   }
 );
 
-export const persistReorderedChatEntries = createAsyncThunk<
-  { chatId: string; newOrder: number[] },
-  { chatId: string; newOrder: number[] }
->('projects/persistReorderedChatEntries', async ({ chatId, newOrder }) => {
-  await axios.post(`/api/v1/chats/${chatId}/reorderEntries`, { newOrder });
-  return { chatId, newOrder };
-});
-
-export const updatePromptSummary = createAsyncThunk<
-  { chatId: string; entryIndex: number; promptSummary: string },
-  { chatId: string; entryIndex: number; promptSummary: string }
->(
-  'projects/updatePromptSummary',
-  async ({ chatId, entryIndex, promptSummary }) => {
-    await axios.patch(`/api/v1/chat-entries/promptSummary/${chatId}/${entryIndex}`, {
-      promptSummary,
-    });
-    return { chatId, entryIndex, promptSummary };
-  }
-);
-
-export const updateOriginalPrompt = createAsyncThunk<
-  { chatId: string; entryIndex: number; originalPrompt: string },
-  { chatId: string; entryIndex: number; originalPrompt: string }
->(
-  'projects/updateOriginalPrompt',
-  async ({ chatId, entryIndex, originalPrompt }) => {
-    await axios.patch(`/api/v1/chat-entries/originalPrompt/${chatId}/${entryIndex}`, {
-      originalPrompt,
-    });
-    return { chatId, entryIndex, originalPrompt };
-  }
-);
-
-export const updateResponse = createAsyncThunk<
-  { chatId: string; entryIndex: number; response: string },
-  { chatId: string; entryIndex: number; response: string }
->(
-  'projects/updateResponse',
-  async ({ chatId, entryIndex, response }) => {
-    await axios.patch(`/api/v1/chat-entries/response/${chatId}/${entryIndex}`, {
-      response,
-    });
-    return { chatId, entryIndex, response };
-  }
-);
-
-export const deleteChatEntry = createAsyncThunk(
-  'projects/deleteChatEntry',
-  async ({ chatId, entryIndex }: { chatId: string; entryIndex: number }) => {
-    await axios.delete(`/api/v1/chat-entries/${chatId}/${entryIndex}`);
-    return { chatId, entryIndex };
-  }
-);
-
 export const moveChatToProject = createAsyncThunk<
   { chatId: string; sourceProjectId: string; targetProjectId: string },
   { chatId: string; sourceProjectId: string; targetProjectId: string }
->('projects/moveChatToProject',
-  async ({ chatId, sourceProjectId, targetProjectId }) => {
-    await axios.post('/api/v1/projects/moveChat', {
-      chatId,
-      sourceProjectId,
-      targetProjectId,
-    });
-    return { chatId, sourceProjectId, targetProjectId };
+>('projects/moveChatToProject', async ({ chatId, sourceProjectId, targetProjectId }) => {
+  await axios.post('/api/v1/projects/moveChat', {
+    chatId,
+    sourceProjectId,
+    targetProjectId,
   });
-
-export const moveChatEntry = createAsyncThunk(
-  'projects/moveChatEntry',
-  async ({ fromProjectId, fromChatId, toProjectId, toChatId, entryIndex, newIndex = 0 }: MoveChatEntryBody) => {
-    await axios.post('/api/v1/chat-entries/moveChat', {
-      fromProjectId, fromChatId, toProjectId, toChatId, entryIndex, newIndex
-    });
-    return { fromProjectId, fromChatId, toProjectId, toChatId, entryIndex, newIndex };
-  }
-);
-
-interface ProjectAndChat {
-  projectId: string;
-  chat: Chat;
-}
-
-function findProjectAndChatById(state: ProjectsState, chatId: string): ProjectAndChat | undefined {
-  for (const project of state.projectList) {
-    const chat = project.chats.find(c => c.id === chatId);
-    if (chat) {
-      return { projectId: project.id, chat };
-    }
-  }
-  return undefined;
-}
+  return { chatId, sourceProjectId, targetProjectId };
+});
 
 const initialState: ProjectsState = {
   projectList: [],
   selectedChatId: null,
 };
+
+function findProjectAndChatById(state: ProjectsState, chatId: string) {
+  for (const project of state.projectList) {
+    const chat = project.chats.find(c => c.id === chatId);
+    if (chat) return { projectId: project.id, chat };
+  }
+  return undefined;
+}
 
 const projectsSlice = createSlice({
   name: 'projects',
@@ -193,22 +113,18 @@ const projectsSlice = createSlice({
     },
     appendParsedMarkdown(state, action: PayloadAction<ProjectsState>) {
       const incomingProjects = action.payload.projectList;
-
       for (const incoming of incomingProjects) {
         const existing = state.projectList.find(p => p.id === incoming.id);
-
         if (!existing) {
-          // New project — add it
           state.projectList.push(incoming);
         } else {
-          // Existing project — merge new chats
           const existingChatIds = new Set(existing.chats.map(c => c.id));
           const newChats = incoming.chats.filter(c => !existingChatIds.has(c.id));
           existing.chats.push(...newChats);
         }
       }
     },
-    deleteChatFromProject: (state, action: PayloadAction<{ projectId: string, chatId: string }>) => {
+    deleteChatFromProject(state, action: PayloadAction<{ projectId: string; chatId: string }>) {
       const { projectId, chatId } = action.payload;
       const project = state.projectList.find(p => p.id === projectId);
       if (project) {
@@ -227,9 +143,7 @@ const projectsSlice = createSlice({
       .addCase(renameProject.fulfilled, (state, action) => {
         const { projectId, name } = action.payload;
         const project = state.projectList.find(p => p.id === projectId);
-        if (project) {
-          project.name = name;
-        }
+        if (project) project.name = name;
       })
       .addCase(deleteProject.fulfilled, (state, action) => {
         state.projectList = state.projectList.filter(p => p.id !== action.payload);
@@ -244,39 +158,6 @@ const projectsSlice = createSlice({
           }
         }
       })
-      .addCase(updatePromptSummary.fulfilled, (state, action) => {
-        const { chatId, entryIndex, promptSummary } = action.payload;
-
-        for (const project of state.projectList) {
-          const chat = project.chats.find((c) => c.id === chatId);
-          if (chat && chat.entries[entryIndex]) {
-            chat.entries[entryIndex].promptSummary = promptSummary;
-            break;
-          }
-        }
-      })
-      .addCase(updateOriginalPrompt.fulfilled, (state, action) => {
-        const { chatId, entryIndex, originalPrompt } = action.payload;
-
-        for (const project of state.projectList) {
-          const chat = project.chats.find((c) => c.id === chatId);
-          if (chat && chat.entries[entryIndex]) {
-            chat.entries[entryIndex].originalPrompt = originalPrompt;
-            break;
-          }
-        }
-      })
-      .addCase(updateResponse.fulfilled, (state, action) => {
-        const { chatId, entryIndex, response } = action.payload;
-
-        for (const project of state.projectList) {
-          const chat = project.chats.find((c) => c.id === chatId);
-          if (chat && chat.entries[entryIndex]) {
-            chat.entries[entryIndex].response = response;
-            break;
-          }
-        }
-      })
       .addCase(deleteChat.fulfilled, (state, action) => {
         const { projectId, chatId } = action.payload;
         const project = state.projectList.find(p => p.id === projectId);
@@ -284,58 +165,22 @@ const projectsSlice = createSlice({
           project.chats = project.chats.filter(chat => chat.id !== chatId);
         }
       })
-      .addCase(deleteChatEntry.fulfilled, (state, action) => {
-        const { chatId, entryIndex } = action.payload;
-        const project = state.projectList.find(p => p.chats.some(c => c.id === chatId));
-        const chat = project?.chats.find(c => c.id === chatId);
-        if (chat && entryIndex >= 0 && entryIndex < chat.entries.length) {
-          chat.entries.splice(entryIndex, 1);
-        }
-      })
       .addCase(persistReorderedChats.fulfilled, (state, action) => {
         const { projectId, newOrder } = action.payload;
         const project = state.projectList.find(p => p.id === projectId);
         if (!project) return;
-
         const chatMap = new Map(project.chats.map(chat => [chat.id, chat]));
-        project.chats = newOrder.map(id => chatMap.get(id)).filter(Boolean) as typeof project.chats;
-      })
-      .addCase(persistReorderedChatEntries.fulfilled, (state, action) => {
-        const { chatId, newOrder } = action.payload;
-
-        for (const project of state.projectList) {
-          const chat = project.chats.find(c => c.id === chatId);
-          if (!chat) continue;
-
-          const currentEntries = chat.entries;
-          chat.entries = newOrder.map(i => currentEntries[i]).filter(Boolean);
-          break;
-        }
-      })
-      .addCase(moveChatEntry.fulfilled, (state, action) => {
-        const { fromChatId, toChatId, entryIndex, newIndex } = action.payload;
-        const fromChatData: ProjectAndChat | undefined = findProjectAndChatById(state, fromChatId);
-        const toChatData: ProjectAndChat | undefined = findProjectAndChatById(state, toChatId);
-        if (!fromChatData || !toChatData) return;
-        const fromChat = fromChatData.chat;
-        const toChat = toChatData.chat;
-        if (!fromChat || !toChat) return;
-        const [entry] = fromChat.entries.splice(entryIndex, 1);
-        if (entry) {
-          toChat.entries.splice(newIndex, 0, entry);
-        }
+        project.chats = newOrder.map(id => chatMap.get(id)).filter(Boolean) as Chat[];
       })
       .addCase(moveChatToProject.fulfilled, (state, action) => {
         const { chatId, sourceProjectId, targetProjectId } = action.payload;
-
-        const sourceProject = state.projectList.find(p => p.id === sourceProjectId);
-        const targetProject = state.projectList.find(p => p.id === targetProjectId);
-
-        if (sourceProject && targetProject) {
-          const chatIndex = sourceProject.chats.findIndex(c => c.id === chatId);
-          if (chatIndex !== -1) {
-            const [chatToMove] = sourceProject.chats.splice(chatIndex, 1);
-            targetProject.chats.push(chatToMove);
+        const source = state.projectList.find(p => p.id === sourceProjectId);
+        const target = state.projectList.find(p => p.id === targetProjectId);
+        if (source && target) {
+          const index = source.chats.findIndex(c => c.id === chatId);
+          if (index !== -1) {
+            const [chat] = source.chats.splice(index, 1);
+            target.chats.push(chat);
           }
         }
         if (state.selectedChatId === chatId) {
@@ -345,5 +190,13 @@ const projectsSlice = createSlice({
   }
 });
 
-export const { setProjects, clearProjects, appendProjects, setSelectedChatId, appendParsedMarkdown } = projectsSlice.actions;
+export const {
+  setProjects,
+  clearProjects,
+  appendProjects,
+  setSelectedChatId,
+  appendParsedMarkdown,
+  deleteChatFromProject
+} = projectsSlice.actions;
+
 export default projectsSlice.reducer;
