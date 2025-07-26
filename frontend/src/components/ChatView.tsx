@@ -1,5 +1,5 @@
 // components/ChatView.tsx
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Typography,
   List,
@@ -34,6 +34,8 @@ import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
 import MoveChatEntryDialog from './MoveChatEntryDialog';
 import { Chat } from '../types';
 import { selectProjectIdByChatId } from '../redux';
+import { selectChatEntries, selectChatEntriesLoading } from '../redux/selectors/chatEntriesSelectors';
+import { fetchChatEntries } from '../redux/chatEntriesSlice';
 
 interface Props {
   searchQuery?: string | null;
@@ -46,6 +48,19 @@ const ChatView: React.FC<Props> = ({ searchQuery }) => {
   );
   const allProjects = useSelector((state: RootState) => state.projects.projectList);
   const dispatch = useDispatch<AppDispatch>();
+
+  const chatEntries = useSelector((state: RootState) =>
+    selectedChatId ? selectChatEntries(state, selectedChatId) : []
+  );
+  const loadingEntries = useSelector((state: RootState) =>
+    selectedChatId ? selectChatEntriesLoading(state, selectedChatId) : false
+  );
+
+  useEffect(() => {
+    if (selectedChatId) {
+      dispatch(fetchChatEntries(selectedChatId));
+    }
+  }, [dispatch, selectedChatId]);
 
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -156,13 +171,17 @@ const ChatView: React.FC<Props> = ({ searchQuery }) => {
         </IconButton>
       </Box>
 
-      {selectedChat.entries.length === 0 ? (
+      {loadingEntries ? (
+        <Typography variant="body2" color="text.secondary">
+          Loading entries...
+        </Typography>
+      ) : chatEntries.length === 0 ? (
         <Typography variant="body2" color="text.secondary">
           No entries in this chat.
         </Typography>
       ) : (
         <List disablePadding>
-          {selectedChat.entries.map((entry, index) => {
+          {chatEntries.map((entry, index) => {
             const key = `${selectedChat.id}-${index}`;
             const expanded = expandedResponses[key] || false;
             const isEditing = editingIndex === index;
@@ -231,7 +250,7 @@ const ChatView: React.FC<Props> = ({ searchQuery }) => {
                               disabled={index === 0}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const newOrder = selectedChat.entries.map((_, i) => i);
+                                const newOrder = chatEntries.map((_, i) => i);
                                 [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
                                 dispatch(persistReorderedChatEntries({ chatId: selectedChat.id, newOrder }));
                               }}
@@ -240,10 +259,10 @@ const ChatView: React.FC<Props> = ({ searchQuery }) => {
                             </IconButton>
                             <IconButton
                               size="small"
-                              disabled={index === selectedChat.entries.length - 1}
+                              disabled={index === chatEntries.length - 1}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const newOrder = selectedChat.entries.map((_, i) => i);
+                                const newOrder = chatEntries.map((_, i) => i);
                                 [newOrder[index + 1], newOrder[index]] = [newOrder[index], newOrder[index + 1]];
                                 dispatch(persistReorderedChatEntries({ chatId: selectedChat.id, newOrder }));
                               }}
