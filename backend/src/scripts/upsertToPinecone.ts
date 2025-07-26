@@ -4,11 +4,15 @@ dotenv.config();
 import mongoose from 'mongoose';
 import { pinecone } from '../pineconeClient';
 import { ChatEntryModel } from '../models/ChatEntry';
+import { getEmbedding } from '../utilities/embed'; // you'll need to restore this
 
 async function connectDB() {
   const uri = process.env.MONGO_URI;
   if (!uri) throw new Error('Missing MONGO_URI');
-  await mongoose.connect(uri);
+  await mongoose.connect(uri, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  } as any);
 }
 
 async function upsertChatEntries() {
@@ -18,24 +22,33 @@ async function upsertChatEntries() {
   );
 
   const entries = await ChatEntryModel.find();
-  console.log(`🔄 Uploading ${entries.length} entries to Pinecone...`);
-
-  const vectors = entries.map((entry: any) => ({
-    id: entry._id.toString(),
-    metadata: {
-      chatId: entry.chatId,
-      projectId: entry.projectId,
-    },
-    text: [entry.originalPrompt, entry.promptSummary, entry.response]
-      .filter(Boolean)
-      .join('\n'),
-  }));
+  console.log(`Uploading ${entries.length} entries to Pinecone...`);
 
   const batchSize = 100;
-  for (let i = 0; i < vectors.length; i += batchSize) {
-    const batch = vectors.slice(i, i + batchSize);
-    await index.upsert(batch);
-    console.log(`✅ Upserted ${Math.min(i + batchSize, vectors.length)} / ${vectors.length}`);
+  for (let i = 0; i < entries.length; i += batchSize) {
+    const batch = entries.slice(i, i + batchSize);
+
+    const vectors = await Promise.all(
+      batch.map(async (entry: any) => {
+        const text = [entry.originalPrompt, entry.promptSummary, entry.response]
+          .filter(Boolean)
+          .join('\n');
+
+        const values = await getEmbedding(text);
+
+        return {
+          id: entry._id.toString(),
+          values,
+          metadata: {
+            chatId: entry.chatId,
+            projectId: entry.projectId,
+          },
+        };
+      })
+    );
+
+    await index.upsert(vectors);
+    console.log(`✅ Upserted ${Math.min(i + batchSize, entries.length)} / ${entries.length}`);
   }
 
   console.log('🎉 All entries upserted.');
