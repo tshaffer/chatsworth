@@ -18,11 +18,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../redux/store';
 import {
   persistReorderedChatEntries,
-  updatePromptSummary,
-  deleteChatEntry,
   moveChatEntry,
-  updateOriginalPrompt,
-  updateResponse,
 } from '../redux/projectsSlice';
 import DownloadIcon from '@mui/icons-material/Download';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
@@ -35,7 +31,7 @@ import MoveChatEntryDialog from './MoveChatEntryDialog';
 import { Chat } from '../types';
 import { selectProjectIdByChatId } from '../redux';
 import { selectChatEntries, selectChatEntriesLoading } from '../redux/selectors/chatEntriesSelectors';
-import { fetchChatEntries } from '../redux/chatEntriesSlice';
+import { deleteChatEntry, fetchChatEntries, updateOriginalPrompt, updatePromptSummary, updateResponse } from '../redux/chatEntriesSlice';
 
 interface Props {
   searchQuery?: string | null;
@@ -295,7 +291,7 @@ const ChatView: React.FC<Props> = ({ searchQuery }) => {
                                 e.stopPropagation();
                                 const confirmed = window.confirm('Delete this entry?');
                                 if (confirmed) {
-                                  dispatch(deleteChatEntry({ chatId: selectedChat.id, entryIndex: index }));
+                                  dispatch(deleteChatEntry({ chatEntryId: entry._id, chatId: selectedChat.id }));
                                 }
                               }}
                             >
