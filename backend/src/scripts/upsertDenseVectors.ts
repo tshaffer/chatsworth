@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import mongoose from 'mongoose';
+import fs from 'fs';
 import { IndexStatsDescription, Pinecone } from '@pinecone-database/pinecone'
 import { ChatEntryModel } from '../models';
 import { getEmbedding } from '../utilities';
@@ -31,11 +32,26 @@ async function upsertChatEntries() {
     const batch = entries.slice(i, i + batchSize);
     const vectors = await Promise.all(
       batch.map(async (entry: any) => {
-        const text = [entry.originalPrompt, entry.promptSummary, entry.response]
+        const MAX_TOKENS = 8192;
+        const MAX_CHARS = MAX_TOKENS * 4; // approx conversion
+
+        let text = [entry.originalPrompt, entry.promptSummary, entry.response]
           .filter(Boolean)
           .join('\n');
 
+        if (text.length > MAX_CHARS) {
+          // Optionally log to a file for later review
+          fs.appendFileSync('/Users/tedshaffer/Documents/tmpFiles/chatsworth/pinecone/truncated_entries.log', `${entry._id}\n`);
+        }
+
+        // Truncate to max length
+        if (text.length > MAX_CHARS) {
+          console.warn(`⚠️ Truncating entry ${entry._id.toString()} from ${text.length} to ${MAX_CHARS} characters.`);
+          text = text.slice(0, MAX_CHARS);
+        }
+
         const values = await getEmbedding(text);
+
         return {
           id: entry._id.toString(),
           values,
