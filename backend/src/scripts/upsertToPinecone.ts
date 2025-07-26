@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import mongoose from 'mongoose';
-import { pinecone } from '../pineconeClient';
+import { pinecone } from '../pineconeClient'; // Make sure this file is pristine as described above
 import { ChatEntryModel } from '../models/ChatEntry';
 import { getEmbedding } from '../utilities/embed'; // you'll need to restore this
 
@@ -13,18 +13,30 @@ async function connectDB() {
     useNewUrlParser: true,
     useUnifiedTopology: true,
   } as any);
+  console.log('MongoDB connected.'); // Add this for clarity
 }
 
 async function upsertChatEntries() {
-  const indexName = process.env.PINECONE_INDEX_NAME!;
-  const pineconeIndexHost = process.env.PINECONE_INDEX_HOST!;
-  if (!indexName) throw new Error('Missing PINECONE_INDEX_NAME');
-  if (!pineconeIndexHost) throw new Error('Missing PINECONE_INDEX_HOST');
+  const indexName = process.env.PINECONE_INDEX_NAME; // No '!' needed here, will be checked below
+  const pineconeIndexHost = process.env.PINECONE_INDEX_HOST; // No '!' needed here
 
-  console.log('pineconeIndexHost:', pineconeIndexHost);
+  console.log('Fetching environment variables...');
+  console.log('PINECONE_INDEX_NAME:', indexName); // Debugging line
+  console.log('PINECONE_INDEX_HOST:', pineconeIndexHost); // Debugging line
+
+  if (!indexName) {
+    console.error('Error: Missing PINECONE_INDEX_NAME in .env');
+    process.exit(1);
+  }
+  if (!pineconeIndexHost) {
+    console.error('Error: Missing PINECONE_INDEX_HOST in .env');
+    process.exit(1);
+  }
+
   // Initialize the Pinecone index client using the host URL
+  console.log('Attempting to initialize Pinecone index with host:', pineconeIndexHost); // Debugging line
   const index = pinecone.Index(pineconeIndexHost); // This is the crucial change
-  console.log('index:', index);
+  console.log('Pinecone index client initialized successfully.'); // Debugging line
 
   const entries = await ChatEntryModel.find();
   console.log(`Uploading ${entries.length} entries to Pinecone...`);
@@ -32,6 +44,8 @@ async function upsertChatEntries() {
   const batchSize = 100;
   for (let i = 0; i < entries.length; i += batchSize) {
     const batch = entries.slice(i, i + batchSize);
+
+    const vector = 0;
 
     const vectors = await Promise.all(
       batch.map(async (entry: any) => {
@@ -51,6 +65,15 @@ async function upsertChatEntries() {
       })
     );
 
+    // console.log(vectors[0]);
+    // console.log(vectors[0].id);
+    // console.log(vectors[0].values);
+    // console.log(vectors[0].metadata);
+    const oneVectors = [vectors[0]]; // For debugging, only upsert the first vector
+    console.log('upsert the first vector:', oneVectors);
+    await index.upsert(oneVectors); // Use the oneVectors for debugging
+    console.log('upserted the first vector:');
+    process.exit(0);
     // await index.upsert(vectors);
     console.log(`✅ Upserted ${Math.min(i + batchSize, entries.length)} / ${entries.length}`);
   }
