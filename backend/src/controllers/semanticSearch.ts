@@ -16,7 +16,7 @@ export const semanticSearchRoute = async (
   try {
     const queryVector = await getEmbedding(query);
 
-    const index = pinecone.Index(process.env.PINECONE_INDEX_HOST!);
+    const index = pinecone.index(process.env.PINECONE_INDEX_NAME, process.env.PINECONE_INDEX_HOST)
 
     const result = await index.query({
       topK: 10,
