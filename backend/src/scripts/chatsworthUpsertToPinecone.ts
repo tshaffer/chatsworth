@@ -52,7 +52,8 @@ async function runUpsertChatsworthToPinecone() {
       },
     };
 
-    await index.upsertRecords([testVector]);
+    // comment out to avoid compilation error
+    // await index.upsertRecords([testVector]);
 
   } catch (error) {
     console.error('❌ Error during minimal upsert test:', error);

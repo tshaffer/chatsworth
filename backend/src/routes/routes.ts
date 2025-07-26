@@ -19,6 +19,7 @@ import {
 } from '../controllers';
 import { getProjects } from '../controllers/projects';
 import { searchRoutes } from '../controllers/search';
+import { semanticSearchRoute } from '../controllers/semanticSearch';
 
 export const createRoutes = (app: express.Application) => {
   app.get('/api/v1/version', getVersion);
@@ -26,6 +27,7 @@ export const createRoutes = (app: express.Application) => {
   app.get('/api/v1/projects', getProjects);
 
   app.get('/api/v1/search', searchRoutes);
+  app.post('/api/v1/semantic-search', semanticSearchRoute);
 
   app.post('/api/v1/importMarkdown', markdownImporterEndpoint);
 
