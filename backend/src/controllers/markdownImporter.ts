@@ -73,7 +73,7 @@ export const markdownImporterEndpoint = async (request: Request, response: Respo
       const newProjectId = uuidv4();
       const newProject: Project = {
         id: newProjectId,
-        name: projectNameFromForm || `Imported Project ${new Date().toISOString()}`,
+        name: projectNameFromForm?.trim() || `Imported Project ${new Date().toISOString()}`,
         chats: chatsFromFiles,
       };
 
