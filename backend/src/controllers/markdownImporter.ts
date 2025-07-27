@@ -2,8 +2,9 @@ import { Request, Response } from 'express';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import { extractChatEntriesPreservingMarkdown, extractMarkdownMetadata } from '../utilities/parseChatMarkdown';
-import { ProjectsState, Project, Chat } from '../types';
+import { ProjectsState, Project, Chat, ChatEntry } from '../types';
 import { ProjectModel } from '../models/Project';
+import { ChatEntryModel } from '../models/ChatEntry';
 
 export const markdownImporterEndpoint = async (request: Request, response: Response) => {
   const storage = multer.memoryStorage();
@@ -16,57 +17,80 @@ export const markdownImporterEndpoint = async (request: Request, response: Respo
     }
 
     const files = request.files as Express.Multer.File[];
-
     if (!files || files.length === 0) {
       return response.status(400).json({ error: 'No files uploaded' });
     }
 
-    // Optional values from FormData
-    const projectId = request.body.projectId?.trim();
+    const projectIdFromForm = request.body.projectId?.trim();
     const projectNameFromForm = request.body.projectName?.trim();
 
     const chatsFromFiles: Chat[] = [];
+    const chatEntryDocsToInsert: ChatEntry[] = [];
 
+    // Step 1: Parse all uploaded files into Chat and ChatEntry objects
     for (const file of files) {
       const markdown = file.buffer.toString('utf-8');
       const metadata = extractMarkdownMetadata(markdown);
       const entries = extractChatEntriesPreservingMarkdown(markdown);
+      const chatId = uuidv4();
 
       const chat: Chat = {
-        id: uuidv4(),
+        id: chatId,
         title: metadata?.title || file.originalname,
         metadata,
-        entries,
       };
-
       chatsFromFiles.push(chat);
+
+      entries.forEach((entry, index) => {
+        chatEntryDocsToInsert.push({
+          chatId,
+          projectId: '', // to be filled in later
+          originalPrompt: entry.originalPrompt,
+          promptSummary: entry.promptSummary,
+          response: entry.response,
+          position: index,
+        });
+      });
     }
 
-    let savedProject;
+    let savedProject: Project;
 
-    // CASE 1: Append to existing project
-    if (projectId) {
-      const existingProject = await ProjectModel.findOne({ id: projectId });
+    // Step 2: Handle new or existing project
+    if (projectIdFromForm) {
+      const existingProject = await ProjectModel.findOne({ id: projectIdFromForm });
       if (!existingProject) {
         return response.status(404).json({ error: 'Project not found' });
       }
 
+      // Assign the existing projectId to each ChatEntry
+      chatEntryDocsToInsert.forEach(entry => {
+        entry.projectId = existingProject.id;
+      });
+
       existingProject.chats.push(...chatsFromFiles);
       savedProject = await existingProject.save();
-
     } else {
-      // CASE 2: Create a new project
+      const newProjectId = uuidv4();
       const newProject: Project = {
-        id: uuidv4(),
+        id: newProjectId,
         name: projectNameFromForm || `Imported Project ${new Date().toISOString()}`,
         chats: chatsFromFiles,
       };
 
-      savedProject = await new ProjectModel(newProject).save();
+      // Assign the new projectId to each ChatEntry
+      chatEntryDocsToInsert.forEach(entry => {
+        entry.projectId = newProjectId;
+      });
+
+      const savedProjectDoc = await new ProjectModel(newProject).save();
+      savedProject = savedProjectDoc.toObject() as Project; // Now a plain Project
     }
 
+    // Step 3: Insert all chat entries
+    await ChatEntryModel.insertMany(chatEntryDocsToInsert);
+
     const projectsState: ProjectsState = {
-      projectList: [savedProject.toObject()],
+      projectList: [savedProject],
     };
 
     return response.json(projectsState);
