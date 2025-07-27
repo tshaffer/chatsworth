@@ -95,41 +95,50 @@ export const deleteChatEntry = async (
 };
 
 export const reorderChatEntries = async (req: Request, res: Response) => {
-  const { chatId, newOrder } = req.body;
+  const { chatId } = req.params;
+  const { newOrder } = req.body; // array of ChatEntry._id strings in new order
 
   if (!chatId || !Array.isArray(newOrder)) {
-    return res.status(400).json({ error: 'chatId and newOrder[] required' });
+    return res.status(400).json({ error: 'chatId and newOrder[] are required' });
   }
 
   try {
-    const updates = newOrder.map((id: string, index: number) =>
-      ChatEntryModel.findByIdAndUpdate(id, { position: index })
+    const updates = newOrder.map((entryId: string, index: number) =>
+      ChatEntryModel.findByIdAndUpdate(entryId, { position: index })
     );
     await Promise.all(updates);
     res.sendStatus(204);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to reorder chat entries' });
+    console.error('Failed to reorder chat entries:', err);
+    res.status(500).json({ error: 'Failed to reorder entries' });
   }
 };
 
 export const moveChatEntry = async (req: Request, res: Response) => {
-  const { entryId, toChatId, toProjectId, newPosition = 0 } = req.body;
+  const {
+    entryId,
+    fromChatId,
+    toChatId,
+    fromProjectId,
+    toProjectId,
+    newIndex = 0,
+  } = req.body;
 
   if (!entryId || !toChatId || !toProjectId) {
-    return res.status(400).json({ error: 'entryId, toChatId, and toProjectId are required' });
+    return res.status(400).json({ error: 'Missing required fields' });
   }
 
   try {
+    // Update the entry to point to the new chat/project and position
     await ChatEntryModel.findByIdAndUpdate(entryId, {
       chatId: toChatId,
       projectId: toProjectId,
-      position: newPosition,
+      position: newIndex,
     });
 
     res.sendStatus(204);
   } catch (err) {
-    console.error(err);
+    console.error('Failed to move entry:', err);
     res.status(500).json({ error: 'Failed to move chat entry' });
   }
 };
