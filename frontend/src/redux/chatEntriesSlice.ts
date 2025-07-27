@@ -76,6 +76,48 @@ export const deleteChatEntry = createAsyncThunk<
   dispatch(fetchChatEntries(chatId));
 });
 
+export const moveChatEntry = createAsyncThunk<
+  void,
+  {
+    entryId: string;
+    fromChatId: string;
+    toChatId: string;
+    fromProjectId: string;
+    toProjectId: string;
+    newIndex?: number;
+  },
+  { dispatch: AppDispatch }
+>(
+  'chatEntries/moveChatEntry',
+  async (payload, { dispatch }) => {
+    await fetch('/api/v1/chat-entries/moveChat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    dispatch(fetchChatEntries(payload.fromChatId));
+    dispatch(fetchChatEntries(payload.toChatId));
+  }
+);
+
+export const persistReorderedChatEntries = createAsyncThunk<
+  void,
+  { chatId: string; newOrder: string[] },
+  { dispatch: AppDispatch }
+>(
+  'chatEntries/persistReorderedChatEntries',
+  async ({ chatId, newOrder }, { dispatch }) => {
+    await fetch(`/api/v1/chats/${chatId}/reorderEntries`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newOrder }),
+    });
+
+    dispatch(fetchChatEntries(chatId));
+  }
+);
+
 const chatEntriesSlice = createSlice({
   name: 'chatEntries',
   initialState,

@@ -16,10 +16,6 @@ import ExpandMore from '@mui/icons-material/ExpandMore';
 import ReactMarkdown from 'react-markdown';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../redux/store';
-import {
-  persistReorderedChatEntries,
-  moveChatEntry,
-} from '../redux/projectsSlice';
 import DownloadIcon from '@mui/icons-material/Download';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
@@ -31,7 +27,7 @@ import MoveChatEntryDialog from './MoveChatEntryDialog';
 import { Chat } from '../types';
 import { selectProjectIdByChatId } from '../redux';
 import { selectChatEntries, selectChatEntriesLoading } from '../redux/selectors/chatEntriesSelectors';
-import { deleteChatEntry, fetchChatEntries, updateOriginalPrompt, updatePromptSummary, updateResponse } from '../redux/chatEntriesSlice';
+import { deleteChatEntry, fetchChatEntries, moveChatEntry, persistReorderedChatEntries, updateOriginalPrompt, updatePromptSummary, updateResponse } from '../redux/chatEntriesSlice';
 
 interface Props {
   searchQuery?: string | null;
@@ -99,17 +95,26 @@ const ChatView: React.FC<Props> = ({ searchQuery }) => {
   };
 
   const handleConfirmMove = (targetProjectId: string, targetChatId: string) => {
-    if (selectedChat && entryIndexToMove !== null) {
+    if (
+      selectedChat &&
+      entryIndexToMove !== null &&
+      entryIndexToMove >= 0 &&
+      entryIndexToMove < chatEntries.length
+    ) {
+      const entryToMove = chatEntries[entryIndexToMove];
+
       dispatch(
         moveChatEntry({
+          entryId: entryToMove._id,
           fromProjectId: selectedProjectId || '',
           fromChatId: selectedChat.id,
           toProjectId: targetProjectId,
           toChatId: targetChatId,
-          entryIndex: entryIndexToMove,
+          newIndex: 0, // or set to desired position
         })
       );
     }
+
     setMoveDialogOpen(false);
     setEntryIndexToMove(null);
   };
@@ -246,9 +251,17 @@ const ChatView: React.FC<Props> = ({ searchQuery }) => {
                               disabled={index === 0}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const newOrder = chatEntries.map((_, i) => i);
-                                [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
-                                dispatch(persistReorderedChatEntries({ chatId: selectedChat.id, newOrder }));
+                                if (index > 0) {
+                                  const newOrder = [...chatEntries.map((entry) => entry._id)];
+                                  [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
+
+                                  dispatch(
+                                    persistReorderedChatEntries({
+                                      chatId: selectedChat.id,
+                                      newOrder,
+                                    })
+                                  );
+                                }
                               }}
                             >
                               <ArrowUpwardIcon fontSize="small" />
@@ -258,9 +271,17 @@ const ChatView: React.FC<Props> = ({ searchQuery }) => {
                               disabled={index === chatEntries.length - 1}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const newOrder = chatEntries.map((_, i) => i);
-                                [newOrder[index + 1], newOrder[index]] = [newOrder[index], newOrder[index + 1]];
-                                dispatch(persistReorderedChatEntries({ chatId: selectedChat.id, newOrder }));
+                                if (index < chatEntries.length - 1) {
+                                  const newOrder = [...chatEntries.map((entry) => entry._id)];
+                                  [newOrder[index + 1], newOrder[index]] = [newOrder[index], newOrder[index + 1]];
+
+                                  dispatch(
+                                    persistReorderedChatEntries({
+                                      chatId: selectedChat.id,
+                                      newOrder,
+                                    })
+                                  );
+                                }
                               }}
                             >
                               <ArrowDownwardIcon fontSize="small" />

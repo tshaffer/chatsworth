@@ -68,14 +68,6 @@ export const deleteChat = createAsyncThunk(
   }
 );
 
-export const persistReorderedChatEntries = createAsyncThunk<
-  { chatId: string; newOrder: number[] },
-  { chatId: string; newOrder: number[] }
->('projects/persistReorderedChatEntries', async ({ chatId, newOrder }) => {
-  await axios.post(`/api/v1/chats/${chatId}/reorderEntries`, { newOrder });
-  return { chatId, newOrder };
-});
-
 export const moveChatToProject = createAsyncThunk<
   { chatId: string; sourceProjectId: string; targetProjectId: string },
   { chatId: string; sourceProjectId: string; targetProjectId: string }
@@ -87,16 +79,6 @@ export const moveChatToProject = createAsyncThunk<
   });
   return { chatId, sourceProjectId, targetProjectId };
 });
-
-export const moveChatEntry = createAsyncThunk(
-  'projects/moveChatEntry',
-  async ({ fromProjectId, fromChatId, toProjectId, toChatId, entryIndex, newIndex = 0 }: MoveChatEntryBody) => {
-    await axios.post('/api/v1/chat-entries/moveChat', {
-      fromProjectId, fromChatId, toProjectId, toChatId, entryIndex, newIndex
-    });
-    return { fromProjectId, fromChatId, toProjectId, toChatId, entryIndex, newIndex };
-  }
-);
 
 const initialState: ProjectsState = {
   projectList: [],
@@ -189,22 +171,6 @@ const projectsSlice = createSlice({
         if (!project) return;
         const chatMap = new Map(project.chats.map(chat => [chat.id, chat]));
         project.chats = newOrder.map(id => chatMap.get(id)).filter(Boolean) as Chat[];
-      })
-      .addCase(persistReorderedChatEntries.fulfilled, (state, action) => {
-        const { chatId, newOrder } = action.payload;
-        const chat = state.projectList.flatMap(p => p.chats).find(c => c.id === chatId);
-        if (chat && Array.isArray(chat.entries)) {
-          const currentEntries = chat.entries;
-          chat.entries = newOrder.map(i => currentEntries[i]).filter(Boolean);
-        }
-      })
-      .addCase(moveChatEntry.fulfilled, (state, action) => {
-        const { fromChatId, toChatId, entryIndex, newIndex } = action.payload;
-        const fromData = findProjectAndChatById(state, fromChatId);
-        const toData = findProjectAndChatById(state, toChatId);
-        if (!fromData || !toData) return;
-        const [entry] = fromData.chat.entries.splice(entryIndex, 1);
-        if (entry) toData.chat.entries.splice(newIndex, 0, entry);
       })
       .addCase(moveChatToProject.fulfilled, (state, action) => {
         const { chatId, sourceProjectId, targetProjectId } = action.payload;
