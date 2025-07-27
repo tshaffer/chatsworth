@@ -50,7 +50,6 @@ export const createRoutes = (app: express.Application) => {
   app.patch('/api/v1/chat-entries/response/:chatId/:entryIndex', updateChatEntryResponse);
   app.delete('/api/v1/chat-entries/:chatId/:entryIndex', deleteChatEntry);
 
-  // routes/projectRoutes.ts
   app.post('/api/v1/projects/moveChat', moveChatToProject);
 
 };

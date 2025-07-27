@@ -1,15 +1,8 @@
 // redux/chatEntriesSlice.ts
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { RootState } from './store';
-
-export interface ChatEntry {
-  _id: string;
-  projectId: string;
-  chatId: string;
-  originalPrompt: string;
-  promptSummary: string;
-  response: string;
-}
+import { AppDispatch } from '../redux/store';
+import { ChatEntry } from '../types';
 
 interface ChatEntriesState {
   entriesByChatId: Record<string, ChatEntry[]>;

@@ -11,6 +11,7 @@ const ChatEntrySchema = new mongoose.Schema({
     type: [Number],
     default: undefined,
   },
+  position: Number, // ← Add this
 });
 
 ChatEntrySchema.index({ embedding: '2dsphere' }); // optional, MongoDB Atlas will use vector index instead
