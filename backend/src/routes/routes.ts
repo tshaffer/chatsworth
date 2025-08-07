@@ -21,6 +21,7 @@ import {
 import { getProjects } from '../controllers/projects';
 import { searchRoutes } from '../controllers/search';
 import { semanticSearchRoute } from '../controllers/semanticSearch';
+import { askChatGptHandler } from '../controllers/askChatGpt';
 
 export const createRoutes = (app: express.Application) => {
   app.get('/api/v1/version', getVersion);
@@ -29,6 +30,7 @@ export const createRoutes = (app: express.Application) => {
 
   app.get('/api/v1/search', searchRoutes);
   app.post('/api/v1/semantic-search', semanticSearchRoute);
+  app.post('/api/v1/ask-chatgpt', askChatGptHandler);
 
   app.post('/api/v1/importMarkdown', markdownImporterEndpoint);
 

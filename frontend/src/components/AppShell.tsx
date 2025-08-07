@@ -20,6 +20,9 @@ import {
   SemanticSearchResults,
   SemanticSearchResultProject,
 } from '../types';
+import AskChatGptDialog from './AskChatGptDialog';
+import Button from '@mui/material/Button';
+import { ChatEntry } from '../types';
 
 const drawerWidth = 444;
 
@@ -29,6 +32,26 @@ const AppShell: React.FC = () => {
   const [searchMode, setSearchMode] = useState<'fulltext' | 'semantic'>('fulltext');
   const [semanticResults, setSemanticResults] = useState<SemanticSearchResults | null>(null);
   const selectedChatId = useSelector((state: RootState) => state.projects.selectedChatId);
+  const [askDialogOpen, setAskDialogOpen] = useState(false);
+
+  // Build lookup maps so we can populate names in results
+  const projects = useSelector((state: RootState) => state.projects.projectList);
+
+  // Map: projectId -> projectName
+  const projectNameById = React.useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of projects) m.set(p.id, p.name);
+    return m;
+  }, [projects]);
+
+  // Map: chatId -> chatTitle
+  const chatTitleById = React.useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of projects) {
+      for (const c of p.chats) m.set(c.id, c.title);
+    }
+    return m;
+  }, [projects]);
 
   useEffect(() => {
     dispatch(fetchProjects());
@@ -56,6 +79,43 @@ const AppShell: React.FC = () => {
     setSemanticResults(null);
   };
 
+const handleShowMatches = (entries: ChatEntry[]) => {
+  const groupedMap: Map<string, SemanticSearchResultProject> = new Map();
+
+  for (const entry of entries) {
+    const { projectId, chatId } = entry;
+
+    let project = groupedMap.get(projectId);
+    if (!project) {
+      project = {
+        projectId,
+        projectName: projectNameById.get(projectId) ?? '', // ← populated from Redux
+        chats: [],
+      };
+      groupedMap.set(projectId, project);
+    }
+
+    let chat = project.chats.find((c) => c.chatId === chatId);
+    if (!chat) {
+      chat = {
+        chatId,
+        chatTitle: chatTitleById.get(chatId) ?? '', // ← populated from Redux
+        entries: [],
+      };
+      project.chats.push(chat);
+    }
+
+    chat.entries.push(entry);
+  }
+
+  const grouped: SemanticSearchResults = Array.from(groupedMap.values());
+
+  setSemanticResults(grouped);
+  setSearchQuery('');           // optional
+  setAskDialogOpen(false);
+  setSearchMode('semantic');    // ensure the UI shows semantic-style results
+};
+
   return (
     <Box sx={{ display: 'flex' }}>
       <CssBaseline />
@@ -65,6 +125,9 @@ const AppShell: React.FC = () => {
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             Chatsworth
           </Typography>
+          <Button variant="outlined" color="inherit" onClick={() => setAskDialogOpen(true)}>
+            Ask ChatGPT
+          </Button>
         </Toolbar>
       </AppBar>
 
@@ -115,6 +178,13 @@ const AppShell: React.FC = () => {
 
         <ChatView selectedChatId={selectedChatId} searchQuery={searchQuery} semanticResults={semanticResults} />
       </Box>
+
+      <AskChatGptDialog
+        open={askDialogOpen}
+        onClose={() => setAskDialogOpen(false)}
+        onShowMatches={handleShowMatches}
+      />
+
     </Box>
   );
 };
