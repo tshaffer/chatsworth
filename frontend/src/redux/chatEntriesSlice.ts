@@ -23,20 +23,15 @@ const normalizeServerEntry = (e: any): ChatEntry => ({
 // 👉 NEW: fetch entries for a chat (keyword mode)
 export const fetchChatEntries = createAsyncThunk<
   { chatId: string; entries: ChatEntry[] },
-  { chatId: string },
-  { state: RootState }
+  { chatId: string }
 >('chatEntries/fetchChatEntries', async ({ chatId }) => {
-  // Try preferred route first
-  try {
-    const res = await axios.get(`/api/v1/chats/${chatId}/entries`);
-    const entries = (res.data?.entries ?? []).map(normalizeServerEntry);
-    return { chatId, entries };
-  } catch (firstErr) {
-    // Fallback: /api/v1/chat-entries?chatId=...
-    const res = await axios.get(`/api/v1/chat-entries`, { params: { chatId } });
-    const entries = (res.data?.entries ?? []).map(normalizeServerEntry);
-    return { chatId, entries };
-  }
+  const res = await axios.get('/api/v1/chatEntries', {
+    params: { chatId },
+    // (optional) avoid 304s if your client cache is getting in the way:
+    // headers: { 'Cache-Control': 'no-cache' },
+  });
+  const entries = (res.data?.entries ?? []).map(normalizeServerEntry);
+  return { chatId, entries };
 });
 
 const initialState: State = { byId: {}, idsByChatId: {} };
@@ -97,7 +92,6 @@ export const {
   upsertEntriesForChat,
 } = slice.actions;
 
-// --- optimistic thunk example
 export const updateResponse = createAsyncThunk<
   void,
   { entryId: string; newResponse: string }
@@ -105,11 +99,12 @@ export const updateResponse = createAsyncThunk<
   const txId = nanoid();
   dispatch(patchEntryOptimistic({ id: entryId, changes: { response: newResponse }, txId }));
   try {
-    await axios.patch(`/api/v1/chat-entries/${entryId}`, { response: newResponse });
+    // ✅ use your camelCase route
+    await axios.patch(`/api/v1/chatEntries/${entryId}`, { response: newResponse });
     dispatch(commitEntry({ id: entryId, txId }));
   } catch (err) {
     dispatch(rollbackEntry({ id: entryId, txId }));
-    // (Optional) toast error
+    // optionally toast
   }
 });
 

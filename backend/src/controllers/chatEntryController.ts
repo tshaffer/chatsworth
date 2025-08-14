@@ -142,3 +142,10 @@ export const moveChatEntry = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to move chat entry' });
   }
 };
+
+export async function patchChatEntry(req: Request, res: Response) {
+  const { entryId } = req.params;
+  const { response } = req.body;
+  await ChatEntryModel.updateOne({ _id: entryId }, { $set: { response } }).exec();
+  res.status(204).end();
+}

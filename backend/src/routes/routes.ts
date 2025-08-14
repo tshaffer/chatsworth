@@ -10,6 +10,7 @@ import {
   markdownImporterEndpoint,
   moveChatEntry,
   moveChatToProject,
+  patchChatEntry,
   renameOrMoveChat,
   renameProject,
   reorderChatEntries,
@@ -53,6 +54,7 @@ export const createRoutes = (app: express.Application) => {
   app.post('/api/v1/chat-entries/moveChat', moveChatEntry);
   app.post('/api/v1/chats/:chatId/reorderEntries', reorderChatEntries);
 
+  app.patch('/api/v1/chatEntries/:entryId', patchChatEntry);
   app.patch('/api/v1/chatEntries/:id/promptSummary', updateChatEntryPromptSummary);
   app.patch('/api/v1/chatEntries/:id/originalPrompt', updateChatEntryOriginalPrompt);
   app.patch('/api/v1/chatEntries/:id/response', updateChatEntryResponse);
