@@ -1,6 +1,6 @@
 import { createSelector } from '@reduxjs/toolkit';
 import { RootState } from '../store';
-import type { ChatEntry } from '../chatEntriesSlice';
+import { ChatEntry } from '../../types';
 
 // base slice
 const selectChatEntriesState = (s: RootState) => s.chatEntries;

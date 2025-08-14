@@ -31,13 +31,12 @@ export interface Chat {
 }
 
 export interface ChatEntry {
-  _id: string;
-  projectId: string;
+  id: string;
   chatId: string;
+  projectId: string;
   originalPrompt: string;
   promptSummary: string;
   response: string;
-  embedding?: number[]; // vector representation for semantic search
 }
 
 export interface SearchResult {
@@ -55,7 +54,6 @@ export interface SemanticSearchResultEntry {
   originalPrompt: string;
   promptSummary: string;
   response: string;
-  // Include other fields from ChatEntry if needed
 }
 
 export interface SemanticSearchResultChat {

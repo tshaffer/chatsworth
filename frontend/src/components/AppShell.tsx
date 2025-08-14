@@ -19,10 +19,11 @@ import axios from 'axios';
 import {
   SemanticSearchResults,
   SemanticSearchResultProject,
+  SemanticSearchResultEntry,
+  ChatEntry,
 } from '../types';
 import AskChatGptDialog from './AskChatGptDialog';
 import Button from '@mui/material/Button';
-import { ChatEntry } from '../types';
 
 const drawerWidth = 444;
 
@@ -79,42 +80,54 @@ const AppShell: React.FC = () => {
     setSemanticResults(null);
   };
 
-const handleShowMatches = (entries: ChatEntry[]) => {
-  const groupedMap: Map<string, SemanticSearchResultProject> = new Map();
+  // Normalize any entry (ChatEntry or SemanticSearchResultEntry) into a SemanticSearchResultEntry
+  const toSemanticEntry = (e: ChatEntry | SemanticSearchResultEntry, fallbackKey: string): SemanticSearchResultEntry => ({
+    _id: (e as any)._id ?? (e as any).id ?? fallbackKey,
+    chatId: (e as any).chatId,
+    projectId: (e as any).projectId,
+    originalPrompt: (e as any).originalPrompt ?? '',
+    promptSummary: (e as any).promptSummary ?? '',
+    response: (e as any).response ?? '',
+  });
 
-  for (const entry of entries) {
-    const { projectId, chatId } = entry;
+  // Called by AskChatGptDialog with an array of entries
+  const handleShowMatches = (entries: Array<ChatEntry | SemanticSearchResultEntry>) => {
+    const groupedMap: Map<string, SemanticSearchResultProject> = new Map();
 
-    let project = groupedMap.get(projectId);
-    if (!project) {
-      project = {
-        projectId,
-        projectName: projectNameById.get(projectId) ?? '', // ← populated from Redux
-        chats: [],
-      };
-      groupedMap.set(projectId, project);
-    }
+    entries.forEach((raw, idx) => {
+      const entry = toSemanticEntry(raw, `tmp-${Date.now()}-${idx}`);
+      const { projectId, chatId } = entry;
 
-    let chat = project.chats.find((c) => c.chatId === chatId);
-    if (!chat) {
-      chat = {
-        chatId,
-        chatTitle: chatTitleById.get(chatId) ?? '', // ← populated from Redux
-        entries: [],
-      };
-      project.chats.push(chat);
-    }
+      let project = groupedMap.get(projectId);
+      if (!project) {
+        project = {
+          projectId,
+          projectName: projectNameById.get(projectId) ?? '',
+          chats: [],
+        };
+        groupedMap.set(projectId, project);
+      }
 
-    chat.entries.push(entry);
-  }
+      let chat = project.chats.find((c) => c.chatId === chatId);
+      if (!chat) {
+        chat = {
+          chatId,
+          chatTitle: chatTitleById.get(chatId) ?? '',
+          entries: [],
+        };
+        project.chats.push(chat);
+      }
 
-  const grouped: SemanticSearchResults = Array.from(groupedMap.values());
+      chat.entries.push(entry);
+    });
 
-  setSemanticResults(grouped);
-  setSearchQuery('');           // optional
-  setAskDialogOpen(false);
-  setSearchMode('semantic');    // ensure the UI shows semantic-style results
-};
+    const grouped: SemanticSearchResults = Array.from(groupedMap.values());
+
+    setSemanticResults(grouped);
+    setSearchQuery('');           // optional UX
+    setAskDialogOpen(false);
+    setSearchMode('semantic');    // ensure the UI shows semantic-style results
+  };
 
   return (
     <Box sx={{ display: 'flex' }}>
@@ -184,7 +197,6 @@ const handleShowMatches = (entries: ChatEntry[]) => {
         onClose={() => setAskDialogOpen(false)}
         onShowMatches={handleShowMatches}
       />
-
     </Box>
   );
 };

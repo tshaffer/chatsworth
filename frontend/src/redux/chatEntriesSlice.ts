@@ -1,15 +1,7 @@
 // redux/chatEntriesSlice.ts
 import { createSlice, createAsyncThunk, PayloadAction, nanoid } from '@reduxjs/toolkit';
 import axios from 'axios';
-
-export interface ChatEntry {
-  id: string;
-  chatId: string;
-  projectId: string;
-  originalPrompt: string;
-  promptSummary: string;
-  response: string;
-}
+import { ChatEntry } from '../types';
 
 type EntriesById = Record<string, ChatEntry>;
 type State = {

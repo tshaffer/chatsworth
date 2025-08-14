@@ -11,7 +11,6 @@ import {
 } from '../redux/projectsSlice';
 import {
   Project,
-  Chat,
   SemanticSearchResults,
   SemanticSearchResultProject,
 } from '../types';
@@ -42,7 +41,6 @@ import CreateProjectDialog from './NewProjectDialog';
 import SelectProjectDialog from './SelectProjectDialog';
 import ImportFromDriveDialog from './ImportFromDriveDialog';
 import ConfirmDeleteProjectDialog from './ConfirmDeleteDialog';
-import { selectChatEntriesByChatId } from '../redux/selectors';
 
 import { makeSelectFilteredProjects } from '../redux/selectors/searchSelectors';
 
@@ -55,36 +53,23 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
   const dispatch = useDispatch<AppDispatch>();
   const selectedChatId = useSelector((state: RootState) => state.projects.selectedChatId);
   const allProjects = useSelector((state: RootState) => state.projects.projectList);
-  const chatEntriesByChatId = useSelector(selectChatEntriesByChatId);
-  const normalizedQuery = searchQuery?.toLowerCase().trim() || '';
 
-  const projects: (SemanticSearchResultProject | Project)[] = useMemo(() => {
-    if (semanticResults) return semanticResults;
+  // Centralized filtering (keyword or semantic)
+  const filteredSelector = useMemo(() => {
+    const sel = makeSelectFilteredProjects();
+    return (state: RootState) =>
+      sel(state, {
+        query: searchQuery ?? '',
+        mode: semanticResults ? 'semantic' as const : 'fulltext' as const,
+        semantic: semanticResults ?? null,
+      });
+  }, [searchQuery, semanticResults]);
 
-    if (!normalizedQuery) return allProjects;
+  const filtered = useSelector(filteredSelector);
 
-    const inText = (text?: string) =>
-      !!text && text.toLowerCase().includes(normalizedQuery);
-
-    const doesChatMatchQuery = (chat: Chat): boolean => {
-      const entries = chatEntriesByChatId[chat.id] || [];
-      return (
-        inText(chat.title) ||
-        (chat.metadata && inText(chat.metadata.user)) ||
-        entries.some((entry) =>
-          [entry.originalPrompt, entry.promptSummary, entry.response].some(inText)
-        )
-      );
-    };
-
-    return allProjects
-      .map((project) => ({
-        ...project,
-        chats: project.chats.filter(doesChatMatchQuery),
-      }))
-      .filter((pr) => pr.chats.length > 0);
-  }, [semanticResults, normalizedQuery, allProjects, chatEntriesByChatId]);
-
+  // The rest of this component expects either real Projects or "semantic-like" projects.
+  // `filtered` is already in the semantic-like form, so we just use that.
+  const projects = filtered as unknown as (SemanticSearchResultProject | Project)[];
 
   const [editProjectName, setEditProjectName] = useState('');
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
@@ -105,13 +90,17 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(new Set());
 
+  // Auto-expand:
+  // - No search → expand all projects
+  // - With search or semantic results → expand only those with chats
   useEffect(() => {
     const expanded = new Set<string>();
 
     if (!searchQuery && !semanticResults) {
       allProjects.forEach((p) => expanded.add(p.id));
     } else {
-      const toCheck: (Project | SemanticSearchResultProject)[] = semanticResults ?? allProjects;
+      const toCheck: (Project | SemanticSearchResultProject)[] =
+        (semanticResults as any) ?? projects;
       toCheck.forEach((project) => {
         const projectId = isSemanticProject(project) ? project.projectId : project.id;
         if (project.chats.length > 0) {
@@ -121,7 +110,7 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
     }
 
     setExpandedProjectIds(expanded);
-  }, [searchQuery, semanticResults, allProjects]);
+  }, [searchQuery, semanticResults, allProjects, projects]);
 
   const toggleProject = (projectId: string) => {
     setExpandedProjectIds((prev) => {
@@ -156,40 +145,43 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
         <Box sx={{ textAlign: 'center', mt: 4, fontStyle: 'italic' }}>No projects found.</Box>
       ) : (
         projects.map((project) => {
-          const projectId = isSemanticProject(project) ? project.projectId : project.id;
-          const projectName = isSemanticProject(project) ? project.projectName : project.name;
+          const projectId = isSemanticProject(project) ? project.projectId : (project as Project).id;
+          const projectName = isSemanticProject(project) ? project.projectName : (project as Project).name;
 
           return (
             <Box key={projectId}>
-              <ListItem disableGutters secondaryAction={
-                <Box>
-                  <IconButton
-                    size="small"
-                    onClick={() => {
-                      setEditingProjectId(projectId);
-                      setEditProjectName(projectName);
-                    }}
-                  >
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-
-                  {!isSemanticProject(project) && (
+              <ListItem
+                disableGutters
+                secondaryAction={
+                  <Box>
                     <IconButton
                       size="small"
                       onClick={() => {
-                        setProjectToDelete(project);
-                        setDeleteDialogOpen(true);
+                        setEditingProjectId(projectId);
+                        setEditProjectName(projectName);
                       }}
                     >
-                      <DeleteIcon fontSize="small" />
+                      <EditIcon fontSize="small" />
                     </IconButton>
-                  )}
 
-                  <IconButton size="small">
-                    <MoreVertIcon fontSize="small" />
-                  </IconButton>
-                </Box>
-              }>
+                    {!isSemanticProject(project) && (
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          setProjectToDelete(project as Project);
+                          setDeleteDialogOpen(true);
+                        }}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    )}
+
+                    <IconButton size="small">
+                      <MoreVertIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                }
+              >
                 <ListItemIcon
                   onClick={() => toggleProject(projectId)}
                   sx={{ minWidth: '30px', cursor: 'pointer' }}
@@ -223,7 +215,7 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
 
               <Collapse in={expandedProjectIds.has(projectId)} timeout="auto" unmountOnExit>
                 <List component="div" disablePadding>
-                  {project.chats.map((chat, index) => {
+                  {project.chats.map((chat: any, index: number) => {
                     const chatId = isSemanticChat(chat) ? chat.chatId : chat.id;
                     const chatTitle = isSemanticChat(chat) ? chat.chatTitle : chat.title;
 
@@ -331,7 +323,8 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
         existingProjects={projects.map((p) => ({
           id: getProjectId(p),
           name: getProjectName(p),
-        }))} onAppendParsedMarkdown={(parsed) => {
+        }))}
+        onAppendParsedMarkdown={(parsed) => {
           dispatch(appendParsedMarkdown(parsed));
         }}
       />

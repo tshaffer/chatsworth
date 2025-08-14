@@ -14,34 +14,18 @@ import {
   ExpandLess,
   ExpandMore,
   Download as DownloadIcon,
-  ArrowUpward as ArrowUpwardIcon,
-  ArrowDownward as ArrowDownwardIcon,
-  Edit as EditIcon,
-  Close as CloseIcon,
-  Delete as DeleteIcon,
-  TrendingFlat as TrendingFlatIcon,
 } from '@mui/icons-material';
 import ReactMarkdown from 'react-markdown';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../redux/store';
-import {
-  deleteChatEntry,
-  fetchChatEntries,
-  moveChatEntry,
-  persistReorderedChatEntries,
-  updateOriginalPrompt,
-  updatePromptSummary,
-  updateResponse,
-} from '../redux/chatEntriesSlice';
+import { updateResponse } from '../redux/chatEntriesSlice';
 import { selectProjectIdByChatId } from '../redux';
-import {
-  selectChatEntries,
-  selectChatEntriesLoading,
-} from '../redux/selectors/chatEntriesSelectors';
-import MoveChatEntryDialog from './MoveChatEntryDialog';
+import { makeSelectChatEntriesByChatId } from '../redux/selectors/chatEntriesSelectors';
 import {
   Chat,
   SemanticSearchResults,
+  SemanticSearchResultEntry,
+  ChatEntry as TypesChatEntry,
 } from '../types';
 
 interface Props {
@@ -50,35 +34,32 @@ interface Props {
   semanticResults?: SemanticSearchResults | null;
 }
 
+// Helper: get an id regardless of _id or id
+const getEntryId = (e: any): string => (e?._id ?? e?.id ?? '') as string;
+
+type EntryLike = SemanticSearchResultEntry | (TypesChatEntry & { _id?: string });
+
 const ChatView: React.FC<Props> = ({ selectedChatId, searchQuery, semanticResults }) => {
   const dispatch = useDispatch<AppDispatch>();
-
-  const prevChatIdRef = useRef<string | null>(null);
 
   const allProjects = useSelector((state: RootState) => state.projects.projectList);
   const selectedProjectId = useSelector((state: RootState) =>
     selectedChatId ? selectProjectIdByChatId(state, selectedChatId) : null
   );
 
-  if (
-    selectedChatId &&
-    !semanticResults &&
-    selectedChatId !== prevChatIdRef.current
-  ) {
-    dispatch(fetchChatEntries(selectedChatId));
-    prevChatIdRef.current = selectedChatId;
-  }
-
+  // Redux entries (normalized) via memoized selector
+  const selectEntriesForChat = useMemo(makeSelectChatEntriesByChatId, []);
   const reduxChatEntries = useSelector((state: RootState) =>
-    selectedChatId ? selectChatEntries(state, selectedChatId) : []
+    selectedChatId ? (selectEntriesForChat(state, selectedChatId) as unknown as EntryLike[]) : []
   );
 
-  const chatEntries = useMemo(() => {
+  // Prefer semantic results when present, otherwise Redux entries
+  const chatEntries: EntryLike[] = useMemo(() => {
     if (semanticResults && selectedChatId) {
       for (const project of semanticResults) {
         for (const chat of project.chats) {
           if (chat.chatId === selectedChatId) {
-            return chat.entries;
+            return chat.entries as EntryLike[];
           }
         }
       }
@@ -105,19 +86,11 @@ const ChatView: React.FC<Props> = ({ selectedChatId, searchQuery, semanticResult
     }
   }, [selectedChatId, semanticResults, allProjects]);
 
-  const loadingEntries = useSelector((state: RootState) =>
-    selectedChatId && !semanticResults
-      ? selectChatEntriesLoading(state, selectedChatId)
-      : false
-  );
+  // If you still have a loading flag in state, wire it here. For now, false.
+  const loadingEntries = false;
 
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [editValue, setEditValue] = useState('');
-  const [editingPromptIndex, setEditingPromptIndex] = useState<number | null>(null);
   const [editingResponseIndex, setEditingResponseIndex] = useState<number | null>(null);
-  const [entryIndexToMove, setEntryIndexToMove] = useState<number | null>(null);
-  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
-  const cancelRef = useRef(false);
+  const [editValue, setEditValue] = useState('');
   const [expandedResponses, setExpandedResponses] = useState<Record<string, boolean>>({});
 
   const normalizedQuery = searchQuery?.toLowerCase().trim();
@@ -134,8 +107,6 @@ const ChatView: React.FC<Props> = ({ selectedChatId, searchQuery, semanticResult
     );
   };
 
-  const allChats = useMemo(() => allProjects.flatMap((p) => p.chats), [allProjects]);
-
   const isVisible = useMemo(() => {
     if (!selectedChat || !searchQuery) return true;
 
@@ -148,38 +119,13 @@ const ChatView: React.FC<Props> = ({ selectedChatId, searchQuery, semanticResult
     return isMatch({
       id: selectedChat.id,
       title: selectedChat.title,
-      entries: chatEntries,
+      entries: chatEntries as any,
     } as Chat);
   }, [selectedChat, searchQuery, semanticResults, chatEntries]);
 
   const toggleResponse = (index: number) => {
     const key = `${selectedChat?.id}-${index}`;
     setExpandedResponses((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const handleConfirmMove = (targetProjectId: string, targetChatId: string) => {
-    if (
-      selectedChat &&
-      entryIndexToMove !== null &&
-      entryIndexToMove >= 0 &&
-      entryIndexToMove < chatEntries.length
-    ) {
-      const entryToMove = chatEntries[entryIndexToMove];
-
-      dispatch(
-        moveChatEntry({
-          entryId: entryToMove._id,
-          fromProjectId: selectedProjectId || '',
-          fromChatId: selectedChat.id,
-          toProjectId: targetProjectId,
-          toChatId: targetChatId,
-          newIndex: 0,
-        })
-      );
-    }
-
-    setMoveDialogOpen(false);
-    setEntryIndexToMove(null);
   };
 
   if (!selectedChat) {
@@ -240,12 +186,10 @@ const ChatView: React.FC<Props> = ({ selectedChatId, searchQuery, semanticResult
           No entries in this chat.
         </Typography>
       ) : (
-        // Keep existing render loop exactly as-is
         <List disablePadding>
-          {chatEntries.map((entry, index) => {
+          {chatEntries.map((entry: EntryLike, index: number) => {
             const key = `${selectedChat.id}-${index}`;
             const expanded = expandedResponses[key] || false;
-            const isEditing = editingIndex === index;
 
             return (
               <React.Fragment key={key}>
@@ -256,122 +200,13 @@ const ChatView: React.FC<Props> = ({ selectedChatId, searchQuery, semanticResult
                         <Typography variant="caption" color="text.secondary" gutterBottom>
                           Prompt:
                         </Typography>
-                        {isEditing ? (
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <TextField
-                              fullWidth
-                              size="small"
-                              variant="outlined"
-                              value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
-                              onClick={(e) => e.stopPropagation()}
-                              onBlur={() => {
-                                if (!cancelRef.current && editValue.trim() !== entry.promptSummary) {
-                                  dispatch(updatePromptSummary({
-                                    chatEntryId: entry._id,
-                                    chatId: selectedChat.id,
-                                    promptSummary: editValue.trim(),
-                                  }));
-                                }
-                                cancelRef.current = false;
-                                setEditingIndex(null);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  (e.target as HTMLInputElement).blur();
-                                } else if (e.key === 'Escape') {
-                                  e.preventDefault();
-                                  cancelRef.current = true;
-                                  setEditingIndex(null);
-                                }
-                              }}
-                              autoFocus
-                            />
-                            <IconButton
-                              size="small"
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                cancelRef.current = true;
-                              }}
-                              onClick={() => setEditingIndex(null)}
-                            >
-                              <CloseIcon fontSize="small" />
-                            </IconButton>
+
+                        {/* Read-only prompt summary for now */}
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                          <Box sx={{ flexGrow: 1 }}>
+                            <ReactMarkdown>{(entry as any).promptSummary ?? ''}</ReactMarkdown>
                           </Box>
-                        ) : (
-                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
-                            <Box sx={{ flexGrow: 1 }}>
-                              <ReactMarkdown>{entry.promptSummary}</ReactMarkdown>
-                            </Box>
-                            <IconButton
-                              size="small"
-                              disabled={index === 0}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (index > 0) {
-                                  const newOrder = [...chatEntries.map((entry) => entry._id)];
-                                  [newOrder[index - 1], newOrder[index]] = [newOrder[index], newOrder[index - 1]];
-                                  dispatch(persistReorderedChatEntries({
-                                    chatId: selectedChat.id,
-                                    newOrder,
-                                  }));
-                                }
-                              }}
-                            >
-                              <ArrowUpwardIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              disabled={index === chatEntries.length - 1}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (index < chatEntries.length - 1) {
-                                  const newOrder = [...chatEntries.map((entry) => entry._id)];
-                                  [newOrder[index + 1], newOrder[index]] = [newOrder[index], newOrder[index + 1]];
-                                  dispatch(persistReorderedChatEntries({
-                                    chatId: selectedChat.id,
-                                    newOrder,
-                                  }));
-                                }
-                              }}
-                            >
-                              <ArrowDownwardIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingIndex(index);
-                                setEditValue(entry.promptSummary);
-                              }}
-                            >
-                              <EditIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEntryIndexToMove(index);
-                                setMoveDialogOpen(true);
-                              }}
-                            >
-                              <TrendingFlatIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const confirmed = window.confirm('Delete this entry?');
-                                if (confirmed) {
-                                  dispatch(deleteChatEntry({ chatEntryId: entry._id, chatId: selectedChat.id }));
-                                }
-                              }}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Box>
-                        )}
+                        </Box>
                       </>
                     }
                   />
@@ -384,50 +219,10 @@ const ChatView: React.FC<Props> = ({ selectedChatId, searchQuery, semanticResult
                       Original Prompt:
                     </Typography>
 
-                    {editingPromptIndex === index ? (
-                      <Box>
-                        <TextField
-                          fullWidth
-                          multiline
-                          minRows={4}
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          onBlur={() => {
-                            if (editValue.trim() !== entry.originalPrompt) {
-                              dispatch(updateOriginalPrompt({
-                                chatEntryId: entry._id,
-                                chatId: selectedChat.id,
-                                originalPrompt: editValue.trim(),
-                              }));
-                            }
-                            setEditingPromptIndex(null);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Escape') {
-                              e.preventDefault();
-                              setEditingPromptIndex(null);
-                            }
-                          }}
-                          autoFocus
-                        />
-                        <Typography variant="caption" color="text.secondary" sx={{ mt: 2 }}>
-                          Preview:
-                        </Typography>
-                        <Box sx={{ border: '1px solid #ccc', borderRadius: 1, p: 1, mt: 1 }}>
-                          <ReactMarkdown>{editValue}</ReactMarkdown>
-                        </Box>
-                      </Box>
-                    ) : (
-                      <Box
-                        onClick={() => {
-                          setEditingPromptIndex(index);
-                          setEditValue(entry.originalPrompt);
-                        }}
-                        sx={{ cursor: 'pointer' }}
-                      >
-                        <ReactMarkdown>{entry.originalPrompt}</ReactMarkdown>
-                      </Box>
-                    )}
+                    {/* Read-only original prompt for now */}
+                    <Box sx={{ cursor: 'default' }}>
+                      <ReactMarkdown>{(entry as any).originalPrompt ?? ''}</ReactMarkdown>
+                    </Box>
 
                     <Typography variant="caption" color="text.secondary" gutterBottom>
                       Response:
@@ -442,11 +237,10 @@ const ChatView: React.FC<Props> = ({ selectedChatId, searchQuery, semanticResult
                           value={editValue}
                           onChange={(e) => setEditValue(e.target.value)}
                           onBlur={() => {
-                            if (editValue.trim() !== entry.response) {
+                            if (editValue.trim() !== (entry as any).response) {
                               dispatch(updateResponse({
-                                chatEntryId: entry._id,
-                                chatId: selectedChat.id,
-                                response: editValue.trim(),
+                                entryId: getEntryId(entry),
+                                newResponse: editValue.trim(),
                               }));
                             }
                             setEditingResponseIndex(null);
@@ -470,11 +264,11 @@ const ChatView: React.FC<Props> = ({ selectedChatId, searchQuery, semanticResult
                       <Box
                         onClick={() => {
                           setEditingResponseIndex(index);
-                          setEditValue(entry.response);
+                          setEditValue((entry as any).response ?? '');
                         }}
                         sx={{ cursor: 'pointer' }}
                       >
-                        <ReactMarkdown>{entry.response}</ReactMarkdown>
+                        <ReactMarkdown>{(entry as any).response ?? ''}</ReactMarkdown>
                       </Box>
                     )}
                   </Paper>
@@ -484,17 +278,6 @@ const ChatView: React.FC<Props> = ({ selectedChatId, searchQuery, semanticResult
           })}
         </List>
       )}
-
-      <MoveChatEntryDialog
-        open={moveDialogOpen}
-        onClose={() => {
-          setMoveDialogOpen(false);
-          setEntryIndexToMove(null);
-        }}
-        onConfirm={handleConfirmMove}
-        availableChats={allChats}
-        currentChatId={selectedChat.id}
-      />
     </Box>
   );
 };
