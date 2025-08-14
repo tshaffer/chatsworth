@@ -26,6 +26,17 @@ export async function semanticSearch(
   try {
     const { query, topK } = (req as any).validated.body as SemanticSearchBody;
 
+    // New optional controls (non-breaking defaults)
+    const {
+      perChatLimit = 5,     // max entries returned per chat
+      minScore = 0,         // drop hits below this score
+      dedupe = true         // collapse duplicate entryIds keeping best score
+    } = ((req as any).validated?.body ?? req.body ?? {}) as {
+      perChatLimit?: number;
+      minScore?: number;
+      dedupe?: boolean;
+    };
+
     const index = getPineconeIndex();
     const expectedDim = await getIndexDimension(index);
 
@@ -57,17 +68,28 @@ export async function semanticSearch(
       promptSummary?: string;
     };
 
-    const flat: FlatHit[] = matches
+    const mapped: FlatHit[] = matches
       .map((m) => ({
-        // ✅ use Pinecone's record id as the entryId if metadata.entryId is missing
+        // Use Pinecone record id as fallback when metadata.entryId is missing
         entryId: String(m.metadata?.entryId ?? m.id ?? ''),
         chatId: String(m.metadata?.chatId ?? ''),
         projectId: String(m.metadata?.projectId ?? ''),
         score: Number(m.score ?? 0),
-        // Pinecone metadata can be string|number|boolean -> coerce to string
         promptSummary: String(m.metadata?.promptSummary ?? ''),
       }))
-      .filter((h) => h.entryId && h.chatId && h.projectId);
+      // require essential ids + drop weak matches
+      .filter((h) => h.entryId && h.chatId && h.projectId && h.score >= minScore);
+
+    // Dedupe by entryId, keeping the highest score
+    const flat: FlatHit[] = (() => {
+      if (!dedupe) return mapped;
+      const byEntry = new Map<string, FlatHit>();
+      for (const h of mapped) {
+        const prev = byEntry.get(h.entryId);
+        if (!prev || h.score > prev.score) byEntry.set(h.entryId, h);
+      }
+      return Array.from(byEntry.values());
+    })();
 
     // If nothing matched, return the grouped shape with an empty array
     if (flat.length === 0) {
@@ -104,18 +126,19 @@ export async function semanticSearch(
       }
     }
 
-    // 3) Group into your exact frontend shape
+    type TempEntry = {
+      _id: string;
+      chatId: string;
+      projectId: string;
+      originalPrompt: string;
+      promptSummary: string;
+      response: string;
+      __score: number; // temp field, not returned to client
+    };
     type AccChat = {
       chatId: string;
       chatTitle: string;
-      entries: {
-        _id: string;
-        chatId: string;
-        projectId: string;
-        originalPrompt: string;
-        promptSummary: string;
-        response: string;
-      }[];
+      entries: TempEntry[];   // was: entries: { ... }[]
     };
 
     type AccProject = {
@@ -155,16 +178,43 @@ export async function semanticSearch(
         chatId: e.chatId,
         projectId: e.projectId,
         originalPrompt: e.originalPrompt ?? '',
-        promptSummary: (e.promptSummary ?? h.promptSummary ?? ''),
+        promptSummary: e.promptSummary ?? h.promptSummary ?? '',
         response: e.response ?? '',
+        __score: h.score,
       });
     }
 
-    const results = Array.from(byProject.values()).map((p) => ({
-      projectId: p.projectId,
-      projectName: p.projectName,
-      chats: Array.from(p.chats.values()),
-    }));
+    const results = Array.from(byProject.values()).map((p) => {
+      // sort chats by their top entry score desc
+      const chats = Array.from(p.chats.values()).map((ch) => {
+        // sort entries by score desc
+        ch.entries.sort((a, b) => b.__score - a.__score);
+        // limit entries per chat
+        if (perChatLimit > 0 && ch.entries.length > perChatLimit) {
+          ch.entries = ch.entries.slice(0, perChatLimit);
+        }
+        return ch;
+      });
+
+      chats.sort((a, b) => {
+        const topA = a.entries[0]?.__score ?? 0;
+        const topB = b.entries[0]?.__score ?? 0;
+        return topB - topA;
+      });
+
+      // strip temp score before returning
+      const cleanedChats = chats.map((ch) => ({
+        chatId: ch.chatId,
+        chatTitle: ch.chatTitle,
+        entries: ch.entries.map(({ __score, ...rest }) => rest),
+      }));
+
+      return {
+        projectId: p.projectId,
+        projectName: p.projectName,
+        chats: cleanedChats,
+      };
+    });
 
     return res.json({ results });
 
