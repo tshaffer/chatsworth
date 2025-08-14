@@ -1,17 +1,15 @@
-import express, { Request, Response } from 'express';
+import { Request, Response } from 'express';
+import { SemanticSearchBody } from '../routes/schemas';
 import { getEmbedding } from '../utilities/embed';
 import { pinecone } from '../pineconeClient';
 import { ChatEntryModel } from '../models/ChatEntry';
 import { ProjectModel } from '../models/Project';
-import { Project, ChatEntry, SemanticSearchResultEntry, SemanticSearchResultChat, SemanticSearchResultProject } from '../types/entities';
+import { Project, SemanticSearchResultEntry, SemanticSearchResultChat, SemanticSearchResultProject } from '../types/entities';
 
 export const semanticSearchRoute = async (req: Request, res: Response) => {
-  const query = req.body.query;
-  if (!query || typeof query !== 'string') {
-    return res.status(400).json({ error: 'Missing or invalid query' });
-  }
-
   try {
+    const { query } = (req as any).validated.body as SemanticSearchBody;
+
     const queryVector = await getEmbedding(query);
 
     const index = pinecone.index(
