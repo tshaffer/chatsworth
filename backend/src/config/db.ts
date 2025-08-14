@@ -1,27 +1,14 @@
 import mongoose from 'mongoose';
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/chatsworth';
+export async function connectDB(): Promise<void> {
+  const MONGO_URI =
+    process.env.MONGO_URI || 'mongodb://localhost:27017/chatsworth';
 
-let connection: mongoose.Connection;
-
-const connectDB = async () => {
-  console.log('mongo uri is:');
-  console.log(process.env.MONGO_URI);
-  if (!connection) {
-    const conn = await mongoose.createConnection(MONGO_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-      useFindAndModify: false,
-    });
-
-    console.log('MongoDB Connected');
-
-    mongoose.Promise = global.Promise;
-
-    connection = conn;
+  try {
+    await mongoose.connect(MONGO_URI);
+    console.log(`✅ Connected to MongoDB at ${MONGO_URI}`);
+  } catch (error) {
+    console.error('❌ Error connecting to MongoDB:', error);
+    process.exit(1); // fail fast in prod
   }
-
-  return connection;
-};
-
-export { connectDB, connection };
+}
