@@ -20,17 +20,25 @@ const normalizeServerEntry = (e: any): ChatEntry => ({
   response: e.response ?? '',
 });
 
-// 👉 NEW: fetch entries for a chat (keyword mode)
 export const fetchChatEntries = createAsyncThunk<
   { chatId: string; entries: ChatEntry[] },
   { chatId: string }
 >('chatEntries/fetchChatEntries', async ({ chatId }) => {
   const res = await axios.get('/api/v1/chatEntries', {
     params: { chatId },
-    // (optional) avoid 304s if your client cache is getting in the way:
-    // headers: { 'Cache-Control': 'no-cache' },
+    // headers: { 'Cache-Control': 'no-cache' }, // optional
   });
-  const entries = (res.data?.entries ?? []).map(normalizeServerEntry);
+
+  // ✅ Handle both shapes:
+  // - backend returns an array:      res.data = [ ... ]
+  // - backend returns an object:     res.data = { entries: [ ... ] }
+  const raw = Array.isArray(res.data)
+    ? res.data
+    : Array.isArray(res.data?.entries)
+      ? res.data.entries
+      : [];
+
+  const entries: ChatEntry[] = raw.map(normalizeServerEntry);
   return { chatId, entries };
 });
 
