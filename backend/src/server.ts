@@ -6,12 +6,11 @@ import path from 'path';
 import fs from 'fs';
 import { Server } from 'http';
 import { createRoutes } from './routes';
-import { connectDB } from './config';
+import mongoose from 'mongoose';
 
 const PORT = Number(process.env.PORT || 8080);
 
 async function main() {
-  await connectDB();
 
   const app = express();
   app.use(cors({ origin: true, credentials: true }));
@@ -55,6 +54,11 @@ async function main() {
     if (status >= 500) console.error('[ERROR]', err);
     res.status(status).json({ error: message });
   });
+
+  const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/chatsworth';
+  mongoose.connect(MONGO_URI)
+    .then(() => console.log('Connected to MongoDB'))
+    .catch((error) => console.error('Error connecting to MongoDB:', error));
 
   const server: Server = app.listen(PORT, () => {
     console.log(`✅ API listening on http://localhost:${PORT}`);
