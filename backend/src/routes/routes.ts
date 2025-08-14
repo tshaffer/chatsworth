@@ -20,7 +20,7 @@ import {
 } from '../controllers';
 import { getProjects } from '../controllers/projects';
 import { textSearch } from '../controllers/search';
-import { semanticSearchRoute } from '../controllers/semanticSearch';
+import { semanticSearch } from '../controllers/semanticSearch';
 import { askChatGptHandler } from '../controllers/askChatGpt';
 import { validate } from './validate';
 import { SearchQuerySchema, SemanticSearchBodySchema } from './schemas';
@@ -34,7 +34,7 @@ export const createRoutes = (app: express.Application) => {
   app.get('/api/v1/search', validate(SearchQuerySchema, 'query'), textSearch);
 
   // Semantic search: POST /api/v1/semantic-search
-  app.post('/api/v1/semantic-search', validate(SemanticSearchBodySchema, 'body'), semanticSearchRoute);
+  app.post('/api/v1/semantic-search', validate(SemanticSearchBodySchema, 'body'), semanticSearch);
 
   app.post('/api/v1/ask-chatgpt', askChatGptHandler);
 

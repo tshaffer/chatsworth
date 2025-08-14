@@ -1,98 +1,51 @@
-import { Request, Response } from 'express';
-import { SemanticSearchBody } from '../routes/schemas';
-import { getEmbedding } from '../utilities/embed';
-import { pinecone } from '../pineconeClient';
-import { ChatEntryModel } from '../models/ChatEntry';
-import { ProjectModel } from '../models/Project';
-import { Project, SemanticSearchResultEntry, SemanticSearchResultChat, SemanticSearchResultProject } from '../types/entities';
+// src/controllers/semanticSearch.ts
+import { Request, Response, NextFunction } from 'express';
+import { getPineconeIndex, getIndexDimension } from '../pineconeClient';
+import { embedText } from '../services/openaiClient'; // named import from A)
+import { SemanticSearchBody } from '../routes/schemas'; // from your Zod step
 
-export const semanticSearchRoute = async (req: Request, res: Response) => {
+const NAMESPACE = process.env.PINECONE_NAMESPACE || undefined;
+const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL || 'text-embedding-3-small';
+
+export async function semanticSearch(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
   try {
-    const { query } = (req as any).validated.body as SemanticSearchBody;
+    const { query, topK } = (req as any).validated.body as SemanticSearchBody;
 
-    const queryVector = await getEmbedding(query);
+    const index = getPineconeIndex();
+    const expectedDim = await getIndexDimension(index);
 
-    const index = pinecone.index(
-      process.env.PINECONE_INDEX_NAME,
-      process.env.PINECONE_INDEX_HOST
-    );
+    const vec = await embedText(query, EMBEDDING_MODEL);
+    if (!Array.isArray(vec) || vec.length !== expectedDim) {
+      throw Object.assign(
+        new Error(`Embedding dimension mismatch for query: got ${vec?.length}, expected ${expectedDim}`),
+        { statusCode: 500 }
+      );
+    }
 
-    const result = await index.query({
-      topK: 10,
-      vector: queryVector,
+    // Scope namespace for queries (don’t pass `namespace` inside query options)
+    const scoped = NAMESPACE ? index.namespace(NAMESPACE) : index;
+
+    const response = await scoped.query({
+      vector: vec,
+      topK,
       includeMetadata: true,
     });
 
-    const matches = result.matches || [];
-    const ids = matches.map((m) => m.id);
+    const results = (response.matches ?? []).map((m) => ({
+      id: m.id,
+      score: m.score,
+      entryId: m.metadata?.entryId,
+      chatId: m.metadata?.chatId,
+      projectId: m.metadata?.projectId,
+      promptSummary: m.metadata?.promptSummary ?? '',
+    }));
 
-    // Hydrate full entries from MongoDB
-    const entries: SemanticSearchResultEntry[] = await ChatEntryModel.find({
-      _id: { $in: ids },
-    }).lean();
-
-    const entryMap: Record<string, SemanticSearchResultEntry> = {};
-    entries.forEach((entry) => {
-      entryMap[entry._id.toString()] = entry;
-    });
-
-    const sortedResults = matches
-      .map((m) => ({
-        score: m.score,
-        entry: entryMap[m.id] || null,
-      }))
-      .filter((r) => r.entry !== null);
-
-    // Group entries by chatId
-    const chatGroups: Record<string, {
-      chatId: string;
-      projectId: string;
-      entries: SemanticSearchResultEntry[];
-    }> = {};
-
-    for (const { entry } of sortedResults) {
-      const { chatId, projectId } = entry;
-      if (!chatGroups[chatId]) {
-        chatGroups[chatId] = { chatId, projectId, entries: [] };
-      }
-      chatGroups[chatId].entries.push(entry);
-    }
-
-    const grouped = Object.values(chatGroups);
-
-    // Load all project metadata
-    const projects = await ProjectModel.find({}).lean();
-
-    const resultStructure: SemanticSearchResultProject[] = projects
-      .map((project: Project) => {
-        const matchingChats: SemanticSearchResultChat[] = project.chats
-          .map((chat) => {
-            const group = grouped.find(
-              (g) => g.chatId === chat.id && g.projectId === project.id
-            );
-            if (!group) return null;
-
-            return {
-              chatId: chat.id,
-              chatTitle: chat.title,
-              entries: group.entries,
-            };
-          })
-          .filter((chat): chat is SemanticSearchResultChat => Boolean(chat));
-
-        if (matchingChats.length === 0) return null;
-
-        return {
-          projectId: project.id,
-          projectName: project.name,
-          chats: matchingChats,
-        };
-      })
-      .filter((project: any): project is SemanticSearchResultProject => Boolean(project));
-
-    res.json({ results: resultStructure });
+    res.json({ results });
   } catch (err) {
-    console.error('Semantic search error:', err);
-    res.status(500).json({ error: 'Search failed' });
+    next(err);
   }
-};
+}

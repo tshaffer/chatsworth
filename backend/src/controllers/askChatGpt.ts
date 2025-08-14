@@ -2,7 +2,7 @@
 import { Request, Response } from 'express';
 import { getEmbedding } from '../utilities/embed';
 import { ChatEntryModel } from '../models/ChatEntry';
-import openai from '../services/openaiClient';
+import { openai } from '../services/openaiClient'; // <-- change this line
 import { Pinecone } from '@pinecone-database/pinecone';
 import dotenv from 'dotenv';
 
