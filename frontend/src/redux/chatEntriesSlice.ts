@@ -2,12 +2,42 @@
 import { createSlice, createAsyncThunk, PayloadAction, nanoid } from '@reduxjs/toolkit';
 import axios from 'axios';
 import { ChatEntry } from '../types';
+import type { RootState } from './store'; // adjust the path if your store file is elsewhere
 
 type EntriesById = Record<string, ChatEntry>;
 type State = {
   byId: EntriesById;          // normalized
   idsByChatId: Record<string, string[]>; // chatId -> entry ids
 };
+
+// helper to normalize server payload to ChatEntry
+const normalizeServerEntry = (e: any): ChatEntry => ({
+  id: String(e.id ?? e._id),
+  chatId: String(e.chatId),
+  projectId: String(e.projectId),
+  originalPrompt: e.originalPrompt ?? '',
+  promptSummary: e.promptSummary ?? '',
+  response: e.response ?? '',
+});
+
+// 👉 NEW: fetch entries for a chat (keyword mode)
+export const fetchChatEntries = createAsyncThunk<
+  { chatId: string; entries: ChatEntry[] },
+  { chatId: string },
+  { state: RootState }
+>('chatEntries/fetchChatEntries', async ({ chatId }) => {
+  // Try preferred route first
+  try {
+    const res = await axios.get(`/api/v1/chats/${chatId}/entries`);
+    const entries = (res.data?.entries ?? []).map(normalizeServerEntry);
+    return { chatId, entries };
+  } catch (firstErr) {
+    // Fallback: /api/v1/chat-entries?chatId=...
+    const res = await axios.get(`/api/v1/chat-entries`, { params: { chatId } });
+    const entries = (res.data?.entries ?? []).map(normalizeServerEntry);
+    return { chatId, entries };
+  }
+});
 
 const initialState: State = { byId: {}, idsByChatId: {} };
 
@@ -50,6 +80,13 @@ const slice = createSlice({
       state.idsByChatId[chatId] = entries.map((e) => e.id);
       for (const e of entries) state.byId[e.id] = e;
     },
+  },
+  extraReducers: (builder) => {
+    builder.addCase(fetchChatEntries.fulfilled, (state, action) => {
+      const { chatId, entries } = action.payload;
+      state.idsByChatId[chatId] = entries.map((e) => e.id);
+      for (const e of entries) state.byId[e.id] = e;
+    });
   },
 });
 

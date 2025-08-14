@@ -1,4 +1,4 @@
-import React, { useRef, useState, useMemo } from 'react';
+import React, { useRef, useState, useMemo, useEffect } from 'react';
 import {
   Typography,
   List,
@@ -18,7 +18,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState, AppDispatch } from '../redux/store';
-import { updateResponse } from '../redux/chatEntriesSlice';
+import { fetchChatEntries, updateResponse } from '../redux/chatEntriesSlice';
 import { selectProjectIdByChatId } from '../redux';
 import { makeSelectChatEntriesByChatId } from '../redux/selectors/chatEntriesSelectors';
 import {
@@ -86,6 +86,13 @@ const ChatView: React.FC<Props> = ({ selectedChatId, searchQuery, semanticResult
     }
   }, [selectedChatId, semanticResults, allProjects]);
 
+  // Fetch entries when in keyword mode and not already loaded
+  useEffect(() => {
+    if (!semanticResults && selectedChatId && reduxChatEntries.length === 0) {
+      dispatch(fetchChatEntries({ chatId: selectedChatId }));
+    }
+  }, [dispatch, semanticResults, selectedChatId, reduxChatEntries.length]);
+
   // If you still have a loading flag in state, wire it here. For now, false.
   const loadingEntries = false;
 
@@ -144,6 +151,9 @@ const ChatView: React.FC<Props> = ({ selectedChatId, searchQuery, semanticResult
     );
   }
 
+  const isKeywordMode = !semanticResults;
+  const isUnloaded = isKeywordMode && selectedChatId && reduxChatEntries.length === 0;
+
   return (
     <Box>
       <Typography variant="h5" gutterBottom>
@@ -177,7 +187,7 @@ const ChatView: React.FC<Props> = ({ selectedChatId, searchQuery, semanticResult
         </IconButton>
       </Box>
 
-      {loadingEntries ? (
+      {isUnloaded ? (
         <Typography variant="body2" color="text.secondary">
           Loading entries...
         </Typography>
