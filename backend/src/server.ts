@@ -1,69 +1,79 @@
+// backend/src/server.ts
+import 'dotenv/config';
+import express, { NextFunction, Request, Response } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
-import express, { Request, Response, NextFunction } from 'express';
-import { connectDB } from './config';
-import { createRoutes } from './routes';
-const bodyParser = require('body-parser');
 import { Server } from 'http';
+import { createRoutes } from './routes';
+import { connectDB } from './config';
 import path from 'path';
-import mongoose from 'mongoose';
-import { ProjectModel } from './models';
 
-console.log('This is a placeholder for the server code.');
+const PORT = Number(process.env.PORT || 8080);
 
-dotenv.config();
+async function main() {
+  // 1) Connect to Mongo first
+  await connectDB();
 
-const startServer = async () => {
+  // 2) App
+  const app = express();
 
-  // await connectDB();  // ✅ Ensure DB is connected before anything else
+  // 3) Core middleware
+  app.use(cors({ origin: true, credentials: true }));
+  app.use(express.json({ limit: '1mb' })); // parse JSON bodies
 
-  // Initialize Express app
-  const app: express.Application = express();
-  const PORT = process.env.PORT || 8080;
+  // 4) Health
+  app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
-  app.use(cors());
-  app.use(express.json());
-
-  app.use(bodyParser.json());
-  app.use(bodyParser.urlencoded({ extended: true }));
-
-  // add routes
+  // 5) Routes (mount everything under /api/v1)
   createRoutes(app);
 
-  // === Environment Configuration Endpoint ===
-  app.get('/env-config.json', (req, res) => {
-    res.json({
-      BACKEND_URL: process.env.BACKEND_URL || 'http://localhost:8080',
-    });
-  });
-
-  // Serve static files from the /public directory
+  // 5.5) Restore functionality for serving static files
+  // Serve static files from /public (adjust if your build directory is elsewhere)
   app.use(express.static(path.join(__dirname, '../public')));
 
-  // Serve the SPA on the root route (index.html)
-  app.get('/', (req: Request, res: Response) => {
+  // Serve index.html for the root
+  app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '../public', 'index.html'));
   });
 
-  const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/chatsworth';
-  mongoose.connect(MONGO_URI)
-    .then(() => console.log('Connected to MongoDB'))
-    .catch((error) => console.error('Error connecting to MongoDB:', error));
-
-  // Start the server
-  const server: Server<any> = app.listen(PORT, () => {
-    console.log(`Server is running at http://localhost:${PORT}`);
+  // Optional: SPA fallback for client-side routes
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public', 'index.html'));
   });
 
-  // one time only
-  // await ProjectModel.syncIndexes();
-
-  process.on('unhandledRejection', (err: any, promise: any) => {
-    console.log(`Error: ${err.message}`);
-    // Close server and exit process
-    server.close(() => process.exit(1));
+  // 6) Central error handler (last)
+  //   - Don’t leak stack traces to clients
+  //   - Ensure all thrown errors get a consistent shape
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    const status = Number(err?.statusCode || err?.status || 500);
+    const message = typeof err?.message === 'string' ? err.message : 'Internal Server Error';
+    if (status >= 500) {
+      // Log server errors
+      console.error('[ERROR]', err);
+    }
+    res.status(status).json({ error: message });
   });
 
+  // 7) Listen + graceful shutdown
+  const server: Server = app.listen(PORT, () => {
+    console.log(`✅ API listening on http://localhost:${PORT}`);
+  });
+
+  const shutdown = (signal: string) => {
+    console.log(`\n${signal} received: closing server...`);
+    server.close(() => {
+      console.log('HTTP server closed.');
+      process.exit(0);
+    });
+    // Force exit if not closed in time
+    setTimeout(() => process.exit(1), 5000);
+  };
+
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
 }
 
-startServer();
+main().catch((err) => {
+  console.error('❌ Failed to start server', err);
+  process.exit(1);
+});
