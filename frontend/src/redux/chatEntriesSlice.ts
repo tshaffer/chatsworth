@@ -1,144 +1,87 @@
 // redux/chatEntriesSlice.ts
-import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { RootState } from './store';
-import { AppDispatch } from '../redux/store';
-import { ChatEntry } from '../types';
+import { createSlice, createAsyncThunk, PayloadAction, nanoid } from '@reduxjs/toolkit';
+import axios from 'axios';
 
-interface ChatEntriesState {
-  entriesByChatId: Record<string, ChatEntry[]>;
-  loadingByChatId: Record<string, boolean>;
-  errorByChatId: Record<string, string | null>;
+export interface ChatEntry {
+  id: string;
+  chatId: string;
+  projectId: string;
+  originalPrompt: string;
+  promptSummary: string;
+  response: string;
 }
 
-const initialState: ChatEntriesState = {
-  entriesByChatId: {},
-  loadingByChatId: {},
-  errorByChatId: {},
+type EntriesById = Record<string, ChatEntry>;
+type State = {
+  byId: EntriesById;          // normalized
+  idsByChatId: Record<string, string[]>; // chatId -> entry ids
 };
 
-export const fetchChatEntries = createAsyncThunk<
-  ChatEntry[],       // Return type
-  string,            // chatId
-  { state: RootState }
->('chatEntries/fetchChatEntries', async (chatId, thunkAPI) => {
-  const response = await fetch(`/api/v1/chatEntries?chatId=${chatId}`);
-  if (!response.ok) throw new Error('Failed to fetch chat entries');
-  return await response.json();
-});
+const initialState: State = { byId: {}, idsByChatId: {} };
 
-export const updatePromptSummary = createAsyncThunk<
-  void,
-  { chatEntryId: string; promptSummary: string; chatId: string },
-  { dispatch: AppDispatch }
->('chatEntries/updatePromptSummary', async ({ chatEntryId, promptSummary, chatId }, { dispatch }) => {
-  await fetch(`/api/v1/chatEntries/${chatEntryId}/promptSummary`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ promptSummary }),
-  });
-  dispatch(fetchChatEntries(chatId));
-});
-
-export const updateOriginalPrompt = createAsyncThunk<
-  void,
-  { chatEntryId: string; originalPrompt: string; chatId: string },
-  { dispatch: AppDispatch }
->('chatEntries/updateOriginalPrompt', async ({ chatEntryId, originalPrompt, chatId }, { dispatch }) => {
-  await fetch(`/api/v1/chatEntries/${chatEntryId}/originalPrompt`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ originalPrompt }),
-  });
-  dispatch(fetchChatEntries(chatId));
-});
-
-export const updateResponse = createAsyncThunk<
-  void,
-  { chatEntryId: string; response: string; chatId: string },
-  { dispatch: AppDispatch }
->('chatEntries/updateResponse', async ({ chatEntryId, response, chatId }, { dispatch }) => {
-  await fetch(`/api/v1/chatEntries/${chatEntryId}/response`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ response }),
-  });
-  dispatch(fetchChatEntries(chatId));
-});
-
-export const deleteChatEntry = createAsyncThunk<
-  void,
-  { chatEntryId: string; chatId: string },
-  { dispatch: AppDispatch }
->('chatEntries/deleteChatEntry', async ({ chatEntryId, chatId }, { dispatch }) => {
-  await fetch(`/api/v1/chatEntries/${chatEntryId}`, {
-    method: 'DELETE',
-  });
-  dispatch(fetchChatEntries(chatId));
-});
-
-export const moveChatEntry = createAsyncThunk<
-  void,
-  {
-    entryId: string;
-    fromChatId: string;
-    toChatId: string;
-    fromProjectId: string;
-    toProjectId: string;
-    newIndex?: number;
-  },
-  { dispatch: AppDispatch }
->(
-  'chatEntries/moveChatEntry',
-  async (payload, { dispatch }) => {
-    await fetch('/api/v1/chat-entries/moveChat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    dispatch(fetchChatEntries(payload.fromChatId));
-    dispatch(fetchChatEntries(payload.toChatId));
-  }
-);
-
-export const persistReorderedChatEntries = createAsyncThunk<
-  void,
-  { chatId: string; newOrder: string[] },
-  { dispatch: AppDispatch }
->(
-  'chatEntries/persistReorderedChatEntries',
-  async ({ chatId, newOrder }, { dispatch }) => {
-    await fetch(`/api/v1/chats/${chatId}/reorderEntries`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ newOrder }),
-    });
-
-    dispatch(fetchChatEntries(chatId));
-  }
-);
-
-const chatEntriesSlice = createSlice({
+// --- optimistic reducers
+const slice = createSlice({
   name: 'chatEntries',
   initialState,
-  reducers: {},
-  extraReducers: (builder) => {
-    builder
-      .addCase(fetchChatEntries.pending, (state, action) => {
-        state.loadingByChatId[action.meta.arg] = true;
-        state.errorByChatId[action.meta.arg] = null;
-      })
-      .addCase(fetchChatEntries.fulfilled, (state, action) => {
-        const chatId = action.meta.arg;
-        state.entriesByChatId[chatId] = action.payload;
-        state.loadingByChatId[chatId] = false;
-      })
-      .addCase(fetchChatEntries.rejected, (state, action) => {
-        const chatId = action.meta.arg;
-        state.loadingByChatId[chatId] = false;
-        state.errorByChatId[chatId] = action.error.message || 'Unknown error';
-      });
+  reducers: {
+    patchEntryOptimistic(
+      state,
+      action: PayloadAction<{ id: string; changes: Partial<ChatEntry>; txId: string }>
+    ) {
+      const { id, changes, txId } = action.payload;
+      const prev = state.byId[id];
+      if (!prev) return;
+      // Stash previous state for potential rollback
+      (state.byId[id] as any).__prevByTx ??= {};
+      (state.byId[id] as any).__prevByTx[txId] = prev;
+      state.byId[id] = { ...prev, ...changes };
+    },
+    rollbackEntry(state, action: PayloadAction<{ id: string; txId: string }>) {
+      const { id, txId } = action.payload;
+      const prev = (state.byId[id] as any)?.__prevByTx?.[txId];
+      if (prev) {
+        state.byId[id] = prev;
+        delete (state.byId[id] as any).__prevByTx[txId];
+      }
+    },
+    commitEntry(state, action: PayloadAction<{ id: string; txId: string }>) {
+      const { id, txId } = action.payload;
+      if ((state.byId[id] as any)?.__prevByTx) {
+        delete (state.byId[id] as any).__prevByTx[txId];
+      }
+    },
+    upsertEntriesForChat(
+      state,
+      action: PayloadAction<{ chatId: string; entries: ChatEntry[] }>
+    ) {
+      const { chatId, entries } = action.payload;
+      state.idsByChatId[chatId] = entries.map((e) => e.id);
+      for (const e of entries) state.byId[e.id] = e;
+    },
   },
 });
 
-export default chatEntriesSlice.reducer;
+export const {
+  patchEntryOptimistic,
+  rollbackEntry,
+  commitEntry,
+  upsertEntriesForChat,
+} = slice.actions;
+
+// --- optimistic thunk example
+export const updateResponse = createAsyncThunk<
+  void,
+  { entryId: string; newResponse: string }
+>('chatEntries/updateResponse', async ({ entryId, newResponse }, { dispatch }) => {
+  const txId = nanoid();
+  dispatch(patchEntryOptimistic({ id: entryId, changes: { response: newResponse }, txId }));
+  try {
+    await axios.patch(`/api/v1/chat-entries/${entryId}`, { response: newResponse });
+    dispatch(commitEntry({ id: entryId, txId }));
+  } catch (err) {
+    dispatch(rollbackEntry({ id: entryId, txId }));
+    // (Optional) toast error
+  }
+});
+
+export default slice.reducer;

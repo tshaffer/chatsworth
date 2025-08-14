@@ -42,7 +42,9 @@ import CreateProjectDialog from './NewProjectDialog';
 import SelectProjectDialog from './SelectProjectDialog';
 import ImportFromDriveDialog from './ImportFromDriveDialog';
 import ConfirmDeleteProjectDialog from './ConfirmDeleteDialog';
-import { selectChatEntriesByChatId } from '../redux/selectors/chatSelectors';
+import { selectChatEntriesByChatId } from '../redux/selectors';
+
+import { makeSelectFilteredProjects } from '../redux/selectors/searchSelectors';
 
 interface ProjectListProps {
   searchQuery?: string | null;
