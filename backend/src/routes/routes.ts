@@ -19,17 +19,23 @@ import {
   updateChatEntryResponse,
 } from '../controllers';
 import { getProjects } from '../controllers/projects';
-import { searchRoutes } from '../controllers/search';
+import { textSearch } from '../controllers/search';
 import { semanticSearchRoute } from '../controllers/semanticSearch';
 import { askChatGptHandler } from '../controllers/askChatGpt';
+import { validate } from './validate';
+import { SearchQuerySchema, SemanticSearchBodySchema } from './schemas';
 
 export const createRoutes = (app: express.Application) => {
   app.get('/api/v1/version', getVersion);
 
   app.get('/api/v1/projects', getProjects);
 
-  app.get('/api/v1/search', searchRoutes);
-  app.post('/api/v1/semantic-search', semanticSearchRoute);
+  // Text search: GET /api/v1/search?q=...
+  app.get('/api/v1/search', validate(SearchQuerySchema, 'query'), textSearch);
+
+  // Semantic search: POST /api/v1/semantic-search
+  app.post('/api/v1/semantic-search', validate(SemanticSearchBodySchema, 'body'), semanticSearchRoute);
+
   app.post('/api/v1/ask-chatgpt', askChatGptHandler);
 
   app.post('/api/v1/importMarkdown', markdownImporterEndpoint);

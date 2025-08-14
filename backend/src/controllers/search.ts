@@ -1,27 +1,20 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { ProjectModel } from '../models/Project';
+import { SearchQuery } from '../routes/schemas';
 
-export const searchRoutes = async (
-  req: Request,
-  res: Response
-) => {
-const { query } = req.query;
-
-  if (!query || typeof query !== 'string') {
-    return res.status(400).json({ error: 'Missing search query' });
-  }
-
+export async function textSearch(req: Request, res: Response, next: NextFunction) {
   try {
-    const results = await ProjectModel.find(
-      { $text: { $search: query } },
-      { score: { $meta: 'textScore' } }
-    )
-    .sort({ score: { $meta: 'textScore' } })
-    .lean();
+    const { q } = (req as any).validated.query as SearchQuery;
 
-    res.json(results);
+    const results = await ProjectModel.find(
+      { $text: { $search: q } },
+      { score: { $meta: 'textScore' }, id: 1, name: 1, chats: 1, _id: 0 }
+    )
+      .sort({ score: { $meta: 'textScore' } })
+      .lean();
+
+    res.json({ results });
   } catch (err) {
-    console.error('Search error:', err);
-    res.status(500).json({ error: 'Search failed' });
+    next(err);
   }
-};
+}
