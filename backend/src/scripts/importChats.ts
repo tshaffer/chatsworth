@@ -76,6 +76,20 @@ async function getChats(): Promise<Chat[]> {
   return chats;
 }
 
+async function getChatsByChatId(): Promise<Record<string, Chat>> {
+
+  const chatsByChatId: Record<string, Chat> = {};
+
+  const projects: Project[] = await ProjectModel.find().lean(); // retrieve all from DB
+
+  for (const project of projects) {
+    for (const chat of project.chats) {
+      chatsByChatId[chat.id] = chat;
+    }
+  }   
+  return chatsByChatId;
+}
+
 async function main() {
 
   const cli = parseArgs();
@@ -91,8 +105,10 @@ async function main() {
 
     const markdownFileData: MarkdownFileData[] = await getMarkdownFileData(cli.chatsDirectory);
 
-    const chats: Chat[] = await (getChats());
-    console.log(chats);
+    const chatsByChatId: Record<string, Chat> = await getChatsByChatId();
+    console.log('Chats by Chat ID:', chatsByChatId);
+    // const chats: Chat[] = await (getChats());
+    // console.log(chats);
 
   } catch (error) {
     console.error('Error reading files:', error);
