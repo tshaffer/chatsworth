@@ -1,10 +1,10 @@
 import dotenv from 'dotenv';
-import { get } from 'http';
 dotenv.config();
 
 const fs = require('fs').promises; // Use the promise-based version for async/await
 import path from 'path';
-
+import { ChatEntryModel } from '../models';
+import { parseMarkdownFiles, MarkdownFileData } from '../controllers';
 /**
  * HOW TO USE
  * ---------
@@ -63,6 +63,9 @@ async function main() {
   try {
     const allFiles: string[] = await getAllMarkdownFiles(cli.chatsDirectory);
     console.log(`Found ${allFiles.length} markdown files in directory.`);
+    const markdownFileData: MarkdownFileData[] = await parseMarkdownFiles(allFiles);
+    console.log(`Parsed metadata from ${markdownFileData.length} markdown files.`);
+    console.log(markdownFileData);
   } catch (error) {
     console.error('Error reading files:', error);
     process.exit(1);
