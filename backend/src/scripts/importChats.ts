@@ -5,6 +5,8 @@ const fs = require('fs').promises; // Use the promise-based version for async/aw
 import path from 'path';
 import { ChatEntryModel } from '../models';
 import { parseMarkdownFiles, MarkdownFileData } from '../controllers';
+import { connectDB } from '../config/db';
+
 /**
  * HOW TO USE
  * ---------
@@ -35,7 +37,6 @@ function parseArgs(): CLI {
   return cli;
 }
 
-
 async function getAllMarkdownFiles(dirPath: string): Promise<string[]> {
   let files: string[] = [];
   const entries = await fs.readdir(dirPath, { withFileTypes: true });
@@ -53,23 +54,36 @@ async function getAllMarkdownFiles(dirPath: string): Promise<string[]> {
   return files;
 }
 
+async function getMarkdownFileData(chatsDirectory: string): Promise<MarkdownFileData[]> {
+  const allFiles: string[] = await getAllMarkdownFiles(chatsDirectory);
+  console.log(`Found ${allFiles.length} markdown files in directory.`);
+  const markdownFileData: MarkdownFileData[] = await parseMarkdownFiles(allFiles);
+  console.log(`Parsed metadata from ${markdownFileData.length} markdown files.`);
+  console.log(markdownFileData);
+  return markdownFileData;
+}
+
 async function main() {
+
   const cli = parseArgs();
   if (!cli.chatsDirectory) {
     throw new Error('Missing required argument: --chatsDirectory');
   }
+
+  await connectDB()
+
   console.log(`Importing chats from directory: ${cli.chatsDirectory}`);
 
   try {
-    const allFiles: string[] = await getAllMarkdownFiles(cli.chatsDirectory);
-    console.log(`Found ${allFiles.length} markdown files in directory.`);
-    const markdownFileData: MarkdownFileData[] = await parseMarkdownFiles(allFiles);
-    console.log(`Parsed metadata from ${markdownFileData.length} markdown files.`);
-    console.log(markdownFileData);
+
+    const markdownFileData = await getMarkdownFileData(cli.chatsDirectory);
+
+
   } catch (error) {
     console.error('Error reading files:', error);
     process.exit(1);
   }
+  process.exit(0);
 }
 
 main().catch((err) => {
