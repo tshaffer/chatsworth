@@ -7,7 +7,7 @@ import { ProjectModel } from "../models";
 
 import { parseMarkdownFiles, MarkdownFileData } from '../controllers';
 import { connectDB } from '../config/db';
-import { Project } from '../types';
+import { Chat, Project } from '../types';
 
 /**
  * HOW TO USE
@@ -65,12 +65,18 @@ async function getMarkdownFileData(chatsDirectory: string): Promise<MarkdownFile
   return markdownFileData;
 }
 
-async function poo(): Promise<void> {
+async function getChats(): Promise<Chat[]> {
+
   const projects: Project[] = await ProjectModel.find().lean(); // retrieve all from DB
-  console.log(projects);
-  // const entries: ChatEntry[] = await ChatEntryModel.find().lean();
-  // console.log(entries[0]);
-  return null;
+  // console.log(projects);
+
+  const chats: Chat[] = [];
+  for (const project of projects) {
+    for (const chat of project.chats) {
+      chats.push(chat);
+    }
+  }   
+  return chats;
 }
 
 async function main() {
@@ -86,9 +92,10 @@ async function main() {
 
   try {
 
-    const markdownFileData = await getMarkdownFileData(cli.chatsDirectory);
+    const markdownFileData: MarkdownFileData[] = await getMarkdownFileData(cli.chatsDirectory);
 
-    await (poo());
+    const chats: Chat[] = await (getChats());
+    console.log(chats);
 
   } catch (error) {
     console.error('Error reading files:', error);
