@@ -5,6 +5,7 @@ import path from 'path';
 import readline from 'readline';
 import mongoose from 'mongoose';
 import { Pinecone } from '@pinecone-database/pinecone';
+import { once } from 'events';
 
 /**
  * HOW TO USE
@@ -107,6 +108,14 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return chunks;
 }
 
+function writeJsonl(s: fs.WriteStream, obj: unknown) {
+  const ok = s.write(JSON.stringify(obj) + '\n');
+  if (!ok) {
+    return once(s, 'drain');
+  }
+  return Promise.resolve();
+}
+
 async function main() {
   const cli = parseArgs();
 
@@ -132,16 +141,21 @@ async function main() {
   }
 
   await ensureDirFor(cli.out!);
-  const outStream = fs.createWriteStream(cli.out!, { flags: 'w' });
+  const outStream = fs.createWriteStream(cli.out!, { flags: 'w', encoding: 'utf8' });
 
   const pinecone = new Pinecone({ apiKey });
   const index = pinecone.index(indexName, indexHost);
 
-  const batches = chunk(ids, Math.min(cli.batch!, 1000)); // Pinecone fetch limit is 1000
+  const maxFetch = 1000;
+  const batchSize = Math.max(1, Math.min(cli.batch ?? maxFetch, maxFetch));
+  const batches = chunk(ids, batchSize);
+
   let foundCount = 0;
   let missingCount = 0;
 
-  console.log(`Backing up ${ids.length} IDs to ${cli.out} (namespace="${cli.namespace}") ...`);
+  console.log(
+    `Backing up ${ids.length} IDs to ${cli.out}` + (cli.namespace ? ` (namespace="${cli.namespace}")` : '')
+  );
 
   for (let i = 0; i < batches.length; i++) {
     const batchIds = batches[i];
@@ -155,15 +169,14 @@ async function main() {
 
     for (const id of Object.keys(records)) {
       const r = records[id];
-      outStream.write(
-        JSON.stringify({
-          id,
-          values: r.values,          // number[] | undefined
-          metadata: r.metadata,      // RecordMetadata
-          sparseValues: r.sparseValues,
-          namespace: cli.namespace || '',
-        }) + '\n'
-      );
+
+      await writeJsonl(outStream, {
+        id,
+        values: r.values,
+        metadata: r.metadata,
+        sparseValues: r.sparseValues,
+        namespace: cli.namespace || '',
+      });
     }
 
     foundCount += Object.keys(records).length;
@@ -176,6 +189,7 @@ async function main() {
   }
 
   outStream.end();
+  await once(outStream, 'finish');   // <-- ensures file is fully written
   console.log(`Done. Found: ${foundCount}, Missing: ${missingCount}. Output: ${cli.out}`);
 }
 
