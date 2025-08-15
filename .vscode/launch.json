@@ -22,6 +22,22 @@
       "envFile": "${workspaceFolder}/backend/.env",
       "runtimeExecutable": "node",
       "sourceMaps": true
+    },
+    {
+      "name": "Run importChats (tsx)",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "tsx",
+        "--inspect-brk"
+      ],
+      "args": [
+        "backend/src/scripts/importChats.ts",
+        "--chatsDirectory=/Users/tedshaffer/Documents/ChatGPTExports/miscellaneous"
+      ],
+      "console": "integratedTerminal"
     }
   ]
 }

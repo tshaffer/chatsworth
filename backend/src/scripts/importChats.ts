@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
-dotenv.config();
-
+dotenv.config({
+  path: path.resolve(__dirname, '../../.env') // adjust relative to src/scripts
+});
 const fs = require('fs').promises; // Use the promise-based version for async/await
 import path from 'path';
 import { ProjectModel } from "../models";
@@ -58,17 +59,13 @@ async function getAllMarkdownFiles(dirPath: string): Promise<string[]> {
 
 async function getMarkdownFileData(chatsDirectory: string): Promise<MarkdownFileData[]> {
   const allFiles: string[] = await getAllMarkdownFiles(chatsDirectory);
-  // console.log(`Found ${allFiles.length} markdown files in directory.`);
   const markdownFileData: MarkdownFileData[] = await parseMarkdownFiles(allFiles);
-  // console.log(`Parsed metadata from ${markdownFileData.length} markdown files.`);
-  // console.log(markdownFileData);
   return markdownFileData;
 }
 
 async function getChats(): Promise<Chat[]> {
 
   const projects: Project[] = await ProjectModel.find().lean(); // retrieve all from DB
-  // console.log(projects);
 
   const chats: Chat[] = [];
   for (const project of projects) {
