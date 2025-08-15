@@ -4,4 +4,4 @@ src/config/config.env
 build/
 public/uploads
 .env
-
+backups/
