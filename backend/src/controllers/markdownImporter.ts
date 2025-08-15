@@ -2,9 +2,10 @@ import { Request, Response } from 'express';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import { extractChatEntriesPreservingMarkdown, extractMarkdownMetadata } from '../utilities/parseChatMarkdown';
-import { ProjectsState, Project, Chat, ChatEntry } from '../types';
+import { ProjectsState, Project, Chat, ChatEntry, MarkdownMetadata } from '../types';
 import { ProjectModel } from '../models/Project';
 import { ChatEntryModel } from '../models/ChatEntry';
+const fs = require('fs').promises; // Use the promise-based version for async/await
 
 export const markdownImporterEndpoint = async (request: Request, response: Response) => {
   const storage = multer.memoryStorage();
@@ -96,3 +97,25 @@ export const markdownImporterEndpoint = async (request: Request, response: Respo
     return response.json(projectsState);
   });
 };
+
+export type Classification =
+  | 'NOT_IMPORTED'
+  | 'IMPORTED_UNCHANGED'
+  | 'IMPORTED_AND_UPDATED';
+
+
+export interface MarkdownFileData {
+  filePath: string;
+  metadata: MarkdownMetadata;
+  classification?: Classification;
+}
+
+export const parseMarkdownFiles = async (filePaths: string[]): Promise<MarkdownFileData[]> => {
+  const markdownFilesData: MarkdownFileData[] = [];
+  for (const filePath of filePaths) {
+    const markdown = await fs.readFile(filePath, 'utf-8');
+    const metadata: MarkdownMetadata = extractMarkdownMetadata(markdown);
+    markdownFilesData.push({ filePath, metadata });
+  }
+  return Promise.resolve(markdownFilesData);
+}
