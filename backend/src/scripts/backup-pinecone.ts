@@ -1,5 +1,7 @@
 // scripts/backup-pinecone.ts
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config();
+
 import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
@@ -11,11 +13,11 @@ import { once } from 'events';
  * HOW TO USE
  * ---------
  * Option A (Mongo): pulls vector IDs from your MongoDB collection and field.
- *    tsx scripts/backup-pinecone.ts --from=mongo --mongoCollection=chatentries --idField=_id
+ *    npx ts-node src/scripts/backup-pinecone.ts --from=mongo --mongoCollection=chatentries --idField=_id
  *
  * Option B (File): reads vector IDs (one per line) from a text file.
  *    ids.txt contains one ID per line
- *    tsx scripts/backup-pinecone.ts --from=file --ids=./ids.txt
+ *    npx ts-node src/scripts/backup-pinecone.ts --from=file --ids=./ids.txt
  *
  * Common optional flags:
  *   --namespace=my-namespace    (defaults to "")
@@ -28,6 +30,7 @@ import { once } from 'events';
  *   PINECONE_INDEX_HOST_DEV
  *   (Mongo only) MONGO_URI
  */
+
 
 type CLI = {
   from: 'mongo' | 'file';
@@ -119,6 +122,8 @@ function writeJsonl(s: fs.WriteStream, obj: unknown) {
 async function main() {
   const cli = parseArgs();
 
+  dotenv.config();
+  
   const apiKey = process.env.PINECONE_API_KEY;
   const indexName = process.env.PINECONE_INDEX_NAME_DEV;
   const indexHost = process.env.PINECONE_INDEX_HOST_DEV;
@@ -146,7 +151,7 @@ async function main() {
   const pinecone = new Pinecone({ apiKey });
   const index = pinecone.index(indexName, indexHost);
 
-  const maxFetch = 1000;
+  const maxFetch = 200;
   const batchSize = Math.max(1, Math.min(cli.batch ?? maxFetch, maxFetch));
   const batches = chunk(ids, batchSize);
 
