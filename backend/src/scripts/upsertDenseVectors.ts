@@ -1,3 +1,8 @@
+// to execute, change to directory
+//    /Users/tedshaffer/Documents/Projects/chatsworth/backend
+// execute
+//    npx ts-node src/scripts/upsertDenseVectors.ts
+
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -16,7 +21,6 @@ async function connectDB() {
   } as any);
   console.log('MongoDB connected.'); // Add this for clarity
 }
-
 
 async function upsertChatEntries() {
   const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
