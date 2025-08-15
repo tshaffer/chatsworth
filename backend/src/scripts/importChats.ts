@@ -3,9 +3,11 @@ dotenv.config();
 
 const fs = require('fs').promises; // Use the promise-based version for async/await
 import path from 'path';
-import { ChatEntryModel } from '../models';
+import { ProjectModel } from "../models";
+
 import { parseMarkdownFiles, MarkdownFileData } from '../controllers';
 import { connectDB } from '../config/db';
+import { Project } from '../types';
 
 /**
  * HOW TO USE
@@ -56,11 +58,19 @@ async function getAllMarkdownFiles(dirPath: string): Promise<string[]> {
 
 async function getMarkdownFileData(chatsDirectory: string): Promise<MarkdownFileData[]> {
   const allFiles: string[] = await getAllMarkdownFiles(chatsDirectory);
-  console.log(`Found ${allFiles.length} markdown files in directory.`);
+  // console.log(`Found ${allFiles.length} markdown files in directory.`);
   const markdownFileData: MarkdownFileData[] = await parseMarkdownFiles(allFiles);
-  console.log(`Parsed metadata from ${markdownFileData.length} markdown files.`);
-  console.log(markdownFileData);
+  // console.log(`Parsed metadata from ${markdownFileData.length} markdown files.`);
+  // console.log(markdownFileData);
   return markdownFileData;
+}
+
+async function poo(): Promise<void> {
+  const projects: Project[] = await ProjectModel.find().lean(); // retrieve all from DB
+  console.log(projects);
+  // const entries: ChatEntry[] = await ChatEntryModel.find().lean();
+  // console.log(entries[0]);
+  return null;
 }
 
 async function main() {
@@ -72,12 +82,13 @@ async function main() {
 
   await connectDB()
 
-  console.log(`Importing chats from directory: ${cli.chatsDirectory}`);
+  // console.log(`Importing chats from directory: ${cli.chatsDirectory}`);
 
   try {
 
     const markdownFileData = await getMarkdownFileData(cli.chatsDirectory);
 
+    await (poo());
 
   } catch (error) {
     console.error('Error reading files:', error);
