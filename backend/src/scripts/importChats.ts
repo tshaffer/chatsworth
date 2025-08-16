@@ -103,52 +103,6 @@ function normalizeText(s: string): string {
     .trim();
 }
 
-/**
- * Extract a "core content" string from a parsed markdown file.
- * Prefers structured entries if present; otherwise falls back to cleaned raw content.
- */
-function coreFromMarkdown(m: MarkdownFileData): string {
-  // If parser produced entries, use those (ignores headings/metadata differences)
-  if (Array.isArray((m as any).entries) && (m as any).entries.length) {
-    const entries = (m as any).entries as Array<{ prompt?: string; response?: string }>;
-    const blocks = entries.map((e, i) => {
-      const q = (e.prompt ?? '').trim();
-      const a = (e.response ?? '').trim();
-      return `#${i + 1}\nQ:\n${q}\n---\nA:\n${a}`;
-    });
-    return normalizeText(blocks.join('\n\n'));
-  }
-  // Fallback: raw content stripped of obvious metadata lines
-  const raw = (m as any).content ?? '';
-  const stripped = raw
-    // strip typical metadata lines our exporter writes, adjust as needed:
-    .replace(/^(\*\*Created:\*\*|Created:).*$\n?/gim, '')
-    .replace(/^(\*\*Updated:\*\*|Updated:).*$\n?/gim, '')
-    .replace(/^(\*\*Exported:\*\*|Exported:).*$\n?/gim, '')
-    .replace(/^(\*\*User:\*\*|User:).*$\n?/gim, '')
-  return normalizeText(stripped);
-}
-
-/**
- * Extract a "core content" string from a DB Chat.
- * Focus on the actual conversation text, ignoring metadata formatting.
- */
-function coreFromDbChat(chat: Chat): string {
-  // Assemble a minimal, deterministic text from entries
-  const parts: string[] = [];
-  // Some schemas use `entries` with { originalPrompt, promptSummary, response }.
-  // Prefer originalPrompt if present; else fall back to promptSummary.
-  (chat.entries ?? []).forEach((e, i) => {
-    const q = (e as any).originalPrompt ?? (e as any).promptSummary ?? '';
-    const a = (e as any).response ?? '';
-    parts.push(`#${i + 1}\nQ:\n${q.trim()}\n---\nA:\n${a.trim()}`);
-  });
-  // Also include the chat title, because users sometimes edit only the title in the file
-  const title = (chat.title ?? '').trim();
-  const header = title ? `TITLE:\n${title}\n===\n` : '';
-  return normalizeText(header + parts.join('\n\n'));
-}
-
 // ------------------------------
 // Matching helpers
 // ------------------------------
@@ -169,8 +123,6 @@ type Classified = {
   title?: string;
   matchedChatId?: string;
   classification: Classification;
-  fileHash: string;
-  dbHash?: string;
 };
 
 async function classifyAll(
@@ -183,9 +135,6 @@ async function classifyAll(
   for (const m of markdowns) {
     const filePath = (m as any).filePath as string;
     const title = titleOfMarkdown(m);
-
-    const fileCore = coreFromMarkdown(m);
-    const fileHash = sha1(fileCore);
 
     let matchedChat: Chat | undefined;
 
@@ -219,24 +168,18 @@ async function classifyAll(
         filePath,
         title,
         classification: 'NOT_IMPORTED',
-        fileHash,
       });
       continue;
     }
 
-    const dbCore = coreFromDbChat(matchedChat);
-    const dbHash = sha1(dbCore);
-
     const classification: Classification =
-      fileHash === dbHash ? 'IMPORTED_UNCHANGED' : 'IMPORTED_AND_UPDATED';
+      'IMPORTED_AND_UPDATED';
 
     results.push({
       filePath,
       title,
       matchedChatId: String(matchedChat.id),
       classification,
-      fileHash,
-      dbHash,
     });
   }
 
@@ -288,8 +231,6 @@ function printCsv(classified: Classified[]) {
       JSON.stringify(r.title ?? ''),
       JSON.stringify(r.matchedChatId ?? ''),
       r.classification,
-      r.fileHash,
-      r.dbHash ?? '',
     ];
     console.log(row.join(','));
   }
