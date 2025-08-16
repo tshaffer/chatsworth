@@ -154,15 +154,7 @@ function coreFromDbChat(chat: Chat): string {
 // Matching helpers
 // ------------------------------
 function titleOfMarkdown(m: MarkdownFileData): string | undefined {
-  // Try explicit parsers first; fallback to first H1; finally filename
-  const metaTitle = (m as any).title as string | undefined;
-  if (metaTitle && metaTitle.trim()) return metaTitle.trim();
-
-  const content = ((m as any).content as string | undefined) ?? '';
-  const h1 = content.match(/^\s*#\s+(.+)\s*$/m);
-  if (h1 && h1[1]?.trim()) return h1[1].trim();
-
-  return undefined;
+  return m.metadata?.title;
 }
 
 function chatIdOfMarkdown(m: MarkdownFileData): string | undefined {
