@@ -62,7 +62,7 @@ async function getMarkdownFileData(chatsDirectory: string): Promise<MarkdownFile
   return markdownFileData;
 }
 
-async function getChatsByBaseHash(): Promise<Record<string, Chat[]>> {
+async function getChatsInDbByBaseHash(): Promise<Record<string, Chat[]>> {
   const map: Record<string, Chat[]> = {};
   const projects: Project[] = await ProjectModel.find().lean();
   for (const project of projects) {
@@ -92,6 +92,10 @@ async function getChatsByBaseHash(): Promise<Record<string, Chat[]>> {
 
 function classifyMarkdownImports(markdownFileData: MarkdownFileData[], chatsByBaseHash: Record<string, Chat[]>): void {
   for (const markdownDataForFile of markdownFileData) {
+    if (!markdownDataForFile.metadata) {
+      console.log(`Markdown file ${markdownDataForFile.filePath} is missing metadata`);
+      continue;
+    }
     const baseHash = markdownDataForFile.metadata.title + markdownDataForFile.metadata.user + markdownDataForFile.metadata.created;
     if (!baseHash) {
       throw new Error(`Markdown file ${markdownDataForFile.filePath} is missing baseHash`);
@@ -124,7 +128,7 @@ async function main() {
 
     const markdownFileData: MarkdownFileData[] = await getMarkdownFileData(cli.chatsDirectory);
 
-    const chatsByBaseHash: Record<string, Chat[]> = await getChatsByBaseHash();
+    const chatsByBaseHash: Record<string, Chat[]> = await getChatsInDbByBaseHash();
     console.log('Chats by Base Hash:', chatsByBaseHash);
 
     classifyMarkdownImports(markdownFileData, chatsByBaseHash);
