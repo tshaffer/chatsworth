@@ -73,6 +73,29 @@ async function getChatsInDbByBaseHash(): Promise<Record<string, Chat[]>> {
   const map: Record<string, Chat[]> = {};
   const projects: Project[] = await ProjectModel.find().lean();
   for (const project of projects) {
+    
+    const chatsSortedByTitle = project.chats.sort((a, b) => a.title.localeCompare(b.title));
+    console.log(chatsSortedByTitle);
+
+    // see if any chats have duplicate titles
+    const titleCounts: Record<string, number> = {};
+    for (const chat of chatsSortedByTitle) {
+      if (!chat.metadata) {
+        throw new Error(`Chat ${chat.id} in project ${project.id} is missing metadata`);
+      }
+      const title = chat.metadata.title || chat.title;
+      if (!title || title.trim() === '') {
+        throw new Error(`Chat ${chat.id} in project ${project.id} is missing title or metadata.title`);
+      }
+      titleCounts[title] = (titleCounts[title] || 0) + 1;
+    }
+    console.log('Looking for duplicate titles in project:', project.id);
+    for (const [title, count] of Object.entries(titleCounts)) {
+      if (count > 1) {
+        console.warn(`Warning: Project ${project.id} has ${count} chats with the title "${title}"`);
+      }
+    }
+
     for (const chat of project.chats) {
       if (!chat.metadata) {
         throw new Error(`Chat ${chat.id} in project ${project.id} is missing metadata`);
