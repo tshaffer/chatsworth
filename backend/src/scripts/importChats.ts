@@ -24,6 +24,11 @@ type CLI = {
   chatsDirectory: string;
 };
 
+type Classification =
+  | 'NOT_IMPORTED'
+  | 'IMPORTED_UNCHANGED'
+  | 'IMPORTED_AND_UPDATED';
+
 function parseArgs(): CLI {
   const args = process.argv.slice(2);
   const get = (key: string) => {
@@ -60,6 +65,34 @@ async function getMarkdownFileData(chatsDirectory: string): Promise<MarkdownFile
   const allFiles: string[] = await getAllMarkdownFiles(chatsDirectory);
   const markdownFileData: MarkdownFileData[] = await parseMarkdownFiles(allFiles);
   return markdownFileData;
+}
+
+async function getChatsByBaseHash(): Promise<Record<string, Chat[]>> {
+  const map: Record<string, Chat[]> = {};
+  const projects: Project[] = await ProjectModel.find().lean();
+  for (const project of projects) {
+    for (const chat of project.chats) {
+      if (!chat.metadata) {
+        throw new Error(`Chat ${chat.id} in project ${project.id} is missing metadata`);
+      }
+
+      let key = chat.metadata?.title || chat.title;
+      if (!key || key.trim() === '') {
+        throw new Error(`Chat ${chat.id} in project ${project.id} is missing title or metadata.title`);
+      }
+      
+      key += chat.metadata.user;
+      key += chat.metadata.created;
+
+      if (!key) {
+        throw new Error(`Chat ${chat.id} in project ${project.id} is missing baseHash`);
+      }
+      if (!map[key]) map[key] = [];
+
+      map[key].push(chat);
+    }
+  }
+  return map;
 }
 
 async function getChats(): Promise<Chat[]> {
@@ -102,8 +135,11 @@ async function main() {
 
     const markdownFileData: MarkdownFileData[] = await getMarkdownFileData(cli.chatsDirectory);
 
-    const chatsByChatId: Record<string, Chat> = await getChatsByChatId();
-    console.log('Chats by Chat ID:', chatsByChatId);
+    // const chatsByChatId: Record<string, Chat> = await getChatsByChatId();
+    // console.log('Chats by Chat ID:', chatsByChatId);
+
+    const chatsByBaseHash: Record<string, Chat[]> = await getChatsByBaseHash();
+    console.log('Chats by Base Hash:', chatsByBaseHash);
 
   } catch (error) {
     console.error('Error reading files:', error);
