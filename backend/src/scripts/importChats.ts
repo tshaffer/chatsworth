@@ -39,6 +39,13 @@ function parseArgs(): CLI {
   return cli;
 }
 
+// for future use
+function stripNumberSuffixMd(filePath: string): string {
+  const dir = path.dirname(filePath);
+  const base = path.basename(filePath).replace(/\s*\(\d+\)(?=\.md$)/i, '');
+  return path.join(dir, base);
+}
+
 async function getAllMarkdownFiles(dirPath: string): Promise<string[]> {
   let files: string[] = [];
   const entries = await fs.readdir(dirPath, { withFileTypes: true });
@@ -91,12 +98,21 @@ async function getChatsInDbByBaseHash(): Promise<Record<string, Chat[]>> {
 }
 
 function classifyMarkdownImports(markdownFileData: MarkdownFileData[], chatsByBaseHash: Record<string, Chat[]>): void {
+  // const chatsByBaseHashKey: Record<string, boolean> = {};
   for (const markdownDataForFile of markdownFileData) {
     if (!markdownDataForFile.metadata) {
       console.log(`Markdown file ${markdownDataForFile.filePath} is missing metadata`);
       continue;
     }
     const baseHash = markdownDataForFile.metadata.title + markdownDataForFile.metadata.user + markdownDataForFile.metadata.created;
+    // if (baseHash === 'Fullscreen Exit CausesTed Shaffer (shaffer.family@gmail.com)7/20/2025 5:26') {
+    //   debugger;
+    // }
+    // if (chatsByBaseHashKey[baseHash]) {
+    //   debugger;
+    // } else {
+    //   chatsByBaseHashKey[baseHash] = true;
+    // }
     if (!baseHash) {
       throw new Error(`Markdown file ${markdownDataForFile.filePath} is missing baseHash`);
     }
