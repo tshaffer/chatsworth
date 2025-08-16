@@ -31,7 +31,6 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": [
         "tsx",
-        "--inspect-brk"
       ],
       "args": [
         "backend/src/scripts/importChats.ts",
