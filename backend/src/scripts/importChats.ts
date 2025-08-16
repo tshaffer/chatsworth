@@ -90,33 +90,6 @@ async function getChatsByBaseHash(): Promise<Record<string, Chat[]>> {
   return map;
 }
 
-async function getChats(): Promise<Chat[]> {
-
-  const projects: Project[] = await ProjectModel.find().lean(); // retrieve all from DB
-
-  const chats: Chat[] = [];
-  for (const project of projects) {
-    for (const chat of project.chats) {
-      chats.push(chat);
-    }
-  }
-  return chats;
-}
-
-async function getChatsByChatId(): Promise<Record<string, Chat>> {
-
-  const chatsByChatId: Record<string, Chat> = {};
-
-  const projects: Project[] = await ProjectModel.find().lean(); // retrieve all from DB
-
-  for (const project of projects) {
-    for (const chat of project.chats) {
-      chatsByChatId[chat.id] = chat;
-    }
-  }
-  return chatsByChatId;
-}
-
 function classifyMarkdownImports(markdownFileData: MarkdownFileData[], chatsByBaseHash: Record<string, Chat[]>): void {
   for (const markdownDataForFile of markdownFileData) {
     const baseHash = markdownDataForFile.metadata.title + markdownDataForFile.metadata.user + markdownDataForFile.metadata.created;
@@ -151,15 +124,12 @@ async function main() {
 
     const markdownFileData: MarkdownFileData[] = await getMarkdownFileData(cli.chatsDirectory);
 
-    // const chatsByChatId: Record<string, Chat> = await getChatsByChatId();
-    // console.log('Chats by Chat ID:', chatsByChatId);
-
     const chatsByBaseHash: Record<string, Chat[]> = await getChatsByBaseHash();
     console.log('Chats by Base Hash:', chatsByBaseHash);
 
     classifyMarkdownImports(markdownFileData, chatsByBaseHash);
     console.log('Markdown File Data:', markdownFileData);
-    
+
   } catch (error) {
     console.error('Error reading files:', error);
     process.exit(1);
