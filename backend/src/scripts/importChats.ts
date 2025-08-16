@@ -126,7 +126,6 @@ function coreFromMarkdown(m: MarkdownFileData): string {
     .replace(/^(\*\*Updated:\*\*|Updated:).*$\n?/gim, '')
     .replace(/^(\*\*Exported:\*\*|Exported:).*$\n?/gim, '')
     .replace(/^(\*\*User:\*\*|User:).*$\n?/gim, '')
-    .replace(/^(\*\*Chat ID:\*\*|Chat ID:).*$\n?/gim, '');
   return normalizeText(stripped);
 }
 
@@ -157,11 +156,6 @@ function titleOfMarkdown(m: MarkdownFileData): string | undefined {
   return m.metadata?.title;
 }
 
-function chatIdOfMarkdown(m: MarkdownFileData): string | undefined {
-  // If your parser pulls a chatId from frontmatter/header, read it here
-  return (m as any).chatId ? String((m as any).chatId) : undefined;
-}
-
 // ------------------------------
 // Classification
 // ------------------------------
@@ -189,7 +183,6 @@ async function classifyAll(
   for (const m of markdowns) {
     const filePath = (m as any).filePath as string;
     const title = titleOfMarkdown(m);
-    const maybeId = chatIdOfMarkdown(m);
 
     const fileCore = coreFromMarkdown(m);
     const fileHash = sha1(fileCore);
@@ -197,9 +190,7 @@ async function classifyAll(
     let matchedChat: Chat | undefined;
 
     // 1) Prefer exact chatId match if present
-    if (maybeId && dbById[maybeId]) {
-      matchedChat = dbById[maybeId];
-    } else if (title && dbByTitle[title]?.length) {
+    if (title && dbByTitle[title]?.length) {
       // 2) Title match: if multiple, pick the closest by simple heuristic
       const candidates = dbByTitle[title];
       if (candidates.length === 1) {
