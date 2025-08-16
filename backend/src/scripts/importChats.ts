@@ -1,8 +1,8 @@
 import dotenv from 'dotenv';
 dotenv.config({
-  path: path.resolve(__dirname, '../../.env') // adjust relative to src/scripts
+  path: path.resolve(__dirname, '../../.env')
 });
-const fs = require('fs').promises; // Use the promise-based version for async/await
+const fs = require('fs').promises;
 import path from 'path';
 import { ProjectModel } from "../models";
 
@@ -19,7 +19,6 @@ import { Chat, Project } from '../types';
  *    npx ts-node src/scripts/importChats.ts --chatsDirectory=/Users/tedshaffer/Documents/ChatGPTExports
  *    npx ts-node src/scripts/importChats.ts --chatsDirectory=/Users/tedshaffer/Documents/ChatGPTExports/miscellaneous
  */
-
 
 type CLI = {
   chatsDirectory: string;
@@ -99,16 +98,12 @@ async function main() {
 
   await connectDB()
 
-  // console.log(`Importing chats from directory: ${cli.chatsDirectory}`);
-
   try {
 
     const markdownFileData: MarkdownFileData[] = await getMarkdownFileData(cli.chatsDirectory);
 
     const chatsByChatId: Record<string, Chat> = await getChatsByChatId();
     console.log('Chats by Chat ID:', chatsByChatId);
-    // const chats: Chat[] = await (getChats());
-    // console.log(chats);
 
   } catch (error) {
     console.error('Error reading files:', error);
