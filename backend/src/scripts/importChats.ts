@@ -24,11 +24,6 @@ type CLI = {
   chatsDirectory: string;
 };
 
-type Classification =
-  | 'NOT_IMPORTED'
-  | 'IMPORTED_UNCHANGED'
-  | 'IMPORTED_AND_UPDATED';
-
 function parseArgs(): CLI {
   const args = process.argv.slice(2);
   const get = (key: string) => {
@@ -80,7 +75,7 @@ async function getChatsByBaseHash(): Promise<Record<string, Chat[]>> {
       if (!key || key.trim() === '') {
         throw new Error(`Chat ${chat.id} in project ${project.id} is missing title or metadata.title`);
       }
-      
+
       key += chat.metadata.user;
       key += chat.metadata.created;
 
@@ -104,7 +99,7 @@ async function getChats(): Promise<Chat[]> {
     for (const chat of project.chats) {
       chats.push(chat);
     }
-  }   
+  }
   return chats;
 }
 
@@ -118,8 +113,29 @@ async function getChatsByChatId(): Promise<Record<string, Chat>> {
     for (const chat of project.chats) {
       chatsByChatId[chat.id] = chat;
     }
-  }   
+  }
   return chatsByChatId;
+}
+
+function classifyMarkdownImports(markdownFileData: MarkdownFileData[], chatsByBaseHash: Record<string, Chat[]>): void {
+  for (const markdownDataForFile of markdownFileData) {
+    const baseHash = markdownDataForFile.metadata.title + markdownDataForFile.metadata.user + markdownDataForFile.metadata.created;
+    if (!baseHash) {
+      throw new Error(`Markdown file ${markdownDataForFile.filePath} is missing baseHash`);
+    }
+    const existingChats = chatsByBaseHash[baseHash] || [];
+    if (existingChats.length === 0) {
+      // no match; new file.
+      markdownDataForFile.classification = 'NOT_IMPORTED';
+    }
+    else if (existingChats.length === 1 && existingChats[0].metadata?.updated === markdownDataForFile.metadata.updated) {
+      // match found, no changes
+      markdownDataForFile.classification = 'IMPORTED_UNCHANGED';
+    } else {
+      // match found, but updated
+      markdownDataForFile.classification = 'IMPORTED_AND_UPDATED';
+    }
+  }
 }
 
 async function main() {
@@ -141,6 +157,9 @@ async function main() {
     const chatsByBaseHash: Record<string, Chat[]> = await getChatsByBaseHash();
     console.log('Chats by Base Hash:', chatsByBaseHash);
 
+    classifyMarkdownImports(markdownFileData, chatsByBaseHash);
+    console.log('Markdown File Data:', markdownFileData);
+    
   } catch (error) {
     console.error('Error reading files:', error);
     process.exit(1);

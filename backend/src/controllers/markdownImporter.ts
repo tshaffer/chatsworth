@@ -98,9 +98,16 @@ export const markdownImporterEndpoint = async (request: Request, response: Respo
   });
 };
 
+export type Classification =
+  | 'NOT_IMPORTED'
+  | 'IMPORTED_UNCHANGED'
+  | 'IMPORTED_AND_UPDATED';
+
+
 export interface MarkdownFileData {
   filePath: string;
   metadata: MarkdownMetadata;
+  classification?: Classification;
 }
 
 export const parseMarkdownFiles = async (filePaths: string[]): Promise<MarkdownFileData[]> => {
