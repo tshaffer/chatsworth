@@ -121,7 +121,8 @@ export const parseMarkdownFiles = async (filePaths: string[]): Promise<MarkdownF
   return Promise.resolve(markdownFilesData);
 }
 
-const pizza = async (project: any, markdownFilesData: MarkdownFileData[]) => {
+const performMarkdownFilesImport = async (project: any, markdownFilesData: MarkdownFileData[]) => {
+
   for (const markdownFileData of markdownFilesData) {
 
     const chatsFromFiles: Chat[] = [];
@@ -162,9 +163,9 @@ const pizza = async (project: any, markdownFilesData: MarkdownFileData[]) => {
       });
 
       project.chats.push(...chatsFromFiles);
-      // await project.save();
+      await project.save();
 
-      // await ChatEntryModel.insertMany(chatEntryDocsToInsert);
+      await ChatEntryModel.insertMany(chatEntryDocsToInsert);
 
 
     } else {
@@ -175,65 +176,13 @@ const pizza = async (project: any, markdownFilesData: MarkdownFileData[]) => {
 
 export const importMarkdownFiles = async (projectName: string, markdownFilesData: MarkdownFileData[]): Promise<any> => {
 
-  const project = await ProjectModel.findOne({ name: projectName }).lean();
-  console.log('Project fineOne result:', project);
+  const project = await ProjectModel.findOne({ name: projectName });
+
   if (!project) {
     throw new Error(`Project with name ${projectName} not found`);
   }
 
-  console.log('Importing markdown files for project:', projectName);
-  await pizza(project, markdownFilesData);
-  console.log('Markdown files data:', markdownFilesData);
-  return;
+  await performMarkdownFilesImport(project, markdownFilesData);
 
-  for (const markdownFileData of markdownFilesData) {
-
-    const chatsFromFiles: Chat[] = [];
-    const chatEntryDocsToInsert: ChatEntry[] = [];
-
-    if (markdownFileData.classification === 'NOT_IMPORTED') {
-      console.log(`Importing file ${markdownFileData.filePath} as it is marked NOT_IMPORTED`);
-
-      const markdownFilePath: string = markdownFileData.filePath;
-      const markdownFileName = path.basename(markdownFilePath, '.md');
-      console.log(`Importing new markdown file: ${markdownFileData.filePath}`);
-      const markdownFileContent: string = await fs.readFile(markdownFilePath, 'utf-8');
-
-      const metadata = extractMarkdownMetadata(markdownFileContent);
-      const entries = extractChatEntriesPreservingMarkdown(markdownFileContent);
-      const chatId = uuidv4();
-
-      const chat: Chat = {
-        id: chatId,
-        title: metadata?.title || markdownFileName,
-        metadata,
-      };
-      chatsFromFiles.push(chat);
-
-      entries.forEach((entry, index) => {
-        chatEntryDocsToInsert.push({
-          chatId,
-          projectId: '', // to be filled in later
-          originalPrompt: entry.originalPrompt,
-          promptSummary: entry.promptSummary,
-          response: entry.response,
-          position: index,
-        });
-      });
-
-      // Assign the existing projectId to each ChatEntry
-      chatEntryDocsToInsert.forEach(entry => {
-        entry.projectId = project.id;
-      });
-
-      project.chats.push(...chatsFromFiles);
-      // await project.save();
-
-      // await ChatEntryModel.insertMany(chatEntryDocsToInsert);
-
-    } else {
-      console.log('Skipping file import as it is not marked NOT_IMPORTED:', markdownFileData.filePath);
-      return;
-    }
-  };
+  console.log(`Markdown files imported successfully for project: ${projectName}`);
 }
