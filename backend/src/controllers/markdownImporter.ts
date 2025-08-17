@@ -6,6 +6,7 @@ import { ProjectsState, Project, Chat, ChatEntry, MarkdownMetadata } from '../ty
 import { ProjectModel } from '../models/Project';
 import { ChatEntryModel } from '../models/ChatEntry';
 const fs = require('fs').promises; // Use the promise-based version for async/await
+import path from 'path';
 
 export const markdownImporterEndpoint = async (request: Request, response: Response) => {
   const storage = multer.memoryStorage();
@@ -113,9 +114,62 @@ export interface MarkdownFileData {
 export const parseMarkdownFiles = async (filePaths: string[]): Promise<MarkdownFileData[]> => {
   const markdownFilesData: MarkdownFileData[] = [];
   for (const filePath of filePaths) {
-    const markdown = await fs.readFile(filePath, 'utf-8');
+    const markdown: string = await fs.readFile(filePath, 'utf-8');
     const metadata: MarkdownMetadata = extractMarkdownMetadata(markdown);
     markdownFilesData.push({ filePath, metadata });
   }
   return Promise.resolve(markdownFilesData);
+}
+
+export const importMarkdownFiles = async (projectId: string, markdownFilesData: MarkdownFileData[]): Promise<any> => {
+
+  const project = await ProjectModel.findOne({ id: projectId }).lean();
+  if (!project) {
+    throw new Error(`Project with id ${projectId} not found`);
+  }
+
+  markdownFilesData.forEach(async (markdownFileData: MarkdownFileData) => {
+
+    const chatsFromFiles: Chat[] = [];
+    const chatEntryDocsToInsert: ChatEntry[] = [];
+
+    if (markdownFileData.classification === 'NOT_IMPORTED') {
+      const markdownFilePath: string = markdownFileData.filePath;
+      const markdownFileName = path.basename(markdownFilePath, '.md');
+      console.log(`Importing new markdown file: ${markdownFileData.filePath}`);
+      const markdownFileContent: string = await fs.readFile(markdownFilePath, 'utf-8');
+
+      const metadata = extractMarkdownMetadata(markdownFileContent);
+      const entries = extractChatEntriesPreservingMarkdown(markdownFileContent);
+      const chatId = uuidv4();
+
+      const chat: Chat = {
+        id: chatId,
+        title: metadata?.title || markdownFileName,
+        metadata,
+      };
+      chatsFromFiles.push(chat);
+
+      entries.forEach((entry, index) => {
+        chatEntryDocsToInsert.push({
+          chatId,
+          projectId: '', // to be filled in later
+          originalPrompt: entry.originalPrompt,
+          promptSummary: entry.promptSummary,
+          response: entry.response,
+          position: index,
+        });
+      });
+
+      // Assign the existing projectId to each ChatEntry
+      chatEntryDocsToInsert.forEach(entry => {
+        entry.projectId = project.id;
+      });
+
+      project.chats.push(...chatsFromFiles);
+      await project.save();
+
+      await ChatEntryModel.insertMany(chatEntryDocsToInsert);
+    }
+  });
 }

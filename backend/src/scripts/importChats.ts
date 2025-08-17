@@ -6,7 +6,7 @@ const fs = require('fs').promises;
 import path from 'path';
 import { ProjectModel } from "../models";
 
-import { parseMarkdownFiles, MarkdownFileData } from '../controllers';
+import { parseMarkdownFiles, MarkdownFileData, importMarkdownFiles } from '../controllers';
 import { connectDB } from '../config/db';
 import { Chat, Project } from '../types';
 
@@ -46,14 +46,14 @@ function stripNumberSuffixMd(filePath: string): string {
   return path.join(dir, base);
 }
 
-async function getAllMarkdownFiles(dirPath: string): Promise<string[]> {
+async function getAllMarkdownFilePaths(dirPath: string): Promise<string[]> {
   let files: string[] = [];
   const entries = await fs.readdir(dirPath, { withFileTypes: true });
 
   for (const entry of entries) {
     const fullPath = path.join(dirPath, entry.name);
     if (entry.isDirectory()) {
-      files = files.concat(await getAllMarkdownFiles(fullPath)); // Recursively call for subdirectories
+      files = files.concat(await getAllMarkdownFilePaths(fullPath)); // Recursively call for subdirectories
     } else {
       if (fullPath.toLowerCase().endsWith('.md')) {
         files.push(fullPath);
@@ -64,8 +64,8 @@ async function getAllMarkdownFiles(dirPath: string): Promise<string[]> {
 }
 
 async function getMarkdownFileData(chatsDirectory: string): Promise<MarkdownFileData[]> {
-  const allFiles: string[] = await getAllMarkdownFiles(chatsDirectory);
-  const markdownFileData: MarkdownFileData[] = await parseMarkdownFiles(allFiles);
+  const allFilePaths: string[] = await getAllMarkdownFilePaths(chatsDirectory);
+  const markdownFileData: MarkdownFileData[] = await parseMarkdownFiles(allFilePaths);
   return markdownFileData;
 }
 
@@ -73,7 +73,7 @@ async function getChatsInDbByBaseHash(): Promise<Record<string, Chat[]>> {
   const map: Record<string, Chat[]> = {};
   const projects: Project[] = await ProjectModel.find().lean();
   for (const project of projects) {
-    
+
     const chatsSortedByTitle = project.chats.sort((a, b) => a.title.localeCompare(b.title));
     console.log(chatsSortedByTitle);
 
@@ -152,6 +152,17 @@ function classifyMarkdownImports(markdownFileData: MarkdownFileData[], chatsByBa
       markdownDataForFile.classification = 'IMPORTED_AND_UPDATED';
     }
   }
+}
+
+async function performMarkdownImports(projectId: string, markdownFileData: MarkdownFileData[]): Promise<void> {
+  markdownFileData.forEach(async fileData => {
+    if (fileData.classification === 'NOT_IMPORTED') {
+      console.log(`Importing new markdown file: ${fileData.filePath}`);
+      const markdown: string = await fs.readFile(fileData.filePath, 'utf-8');
+      const placeHolder = importMarkdownFiles(projectId, [fileData]);
+    }
+  });
+  return Promise.resolve();
 }
 
 async function main() {
