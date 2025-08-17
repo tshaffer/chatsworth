@@ -35,7 +35,7 @@ import {
   Delete as DeleteIcon,
 } from '@mui/icons-material';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ChatContextMenu from './ChatContextMenu';
 import CreateProjectDialog from './NewProjectDialog';
 import SelectProjectDialog from './SelectProjectDialog';
@@ -43,6 +43,7 @@ import ImportFromDriveDialog from './ImportFromDriveDialog';
 import ConfirmDeleteProjectDialog from './ConfirmDeleteDialog';
 
 import { makeSelectFilteredProjects } from '../redux/selectors/searchSelectors';
+import { flushSync } from 'react-dom';
 
 interface ProjectListProps {
   searchQuery?: string | null;
@@ -52,7 +53,10 @@ interface ProjectListProps {
 const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults }) => {
   const dispatch = useDispatch<AppDispatch>();
   const selectedChatId = useSelector((state: RootState) => state.projects.selectedChatId);
-  const allProjects = useSelector((state: RootState) => state.projects.projectList);
+  const allProjects: Project[] = useSelector((state: RootState) => state.projects.projectList);
+
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const ignoreBlurUntil = useRef<number>(0);
 
   // Centralized filtering (keyword or semantic)
   const filteredSelector = useMemo(() => {
@@ -91,14 +95,11 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
   const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(new Set());
 
   // Auto-expand:
-  // - No search → expand all projects
+  // - No search → no change to expanded
   // - With search or semantic results → expand only those with chats
   useEffect(() => {
     const expanded = new Set<string>();
-
-    if (!searchQuery && !semanticResults) {
-      allProjects.forEach((p) => expanded.add(p.id));
-    } else {
+    if (!(!searchQuery && !semanticResults)) {
       const toCheck: (Project | SemanticSearchResultProject)[] =
         (semanticResults as any) ?? projects;
       toCheck.forEach((project) => {
@@ -107,10 +108,10 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
           expanded.add(projectId);
         }
       });
+      setExpandedProjectIds(expanded);
     }
-
-    setExpandedProjectIds(expanded);
-  }, [searchQuery, semanticResults, allProjects, projects]);
+  }, [searchQuery, semanticResults, allProjects]);
+  // }, [searchQuery, semanticResults, allProjects, projects]);
 
   const toggleProject = (projectId: string) => {
     setExpandedProjectIds((prev) => {
@@ -218,8 +219,10 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
                   {project.chats.map((chat: any, index: number) => {
                     const chatId = isSemanticChat(chat) ? chat.chatId : chat.id;
                     const chatTitle = isSemanticChat(chat) ? chat.chatTitle : chat.title;
+                    const isEditing = editingChatId === chatId;
 
                     return (
+
                       <ListItem
                         key={chatId}
                         sx={{
@@ -228,9 +231,8 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
                           cursor: editingChatId === chatId ? 'default' : 'pointer',
                         }}
                         onClick={() => {
-                          if (editingChatId !== chatId) {
-                            dispatch(setSelectedChatId(chatId));
-                          }
+                          if (editingChatId || menuAnchorEl) return;
+                          dispatch(setSelectedChatId(chatId));
                         }}
                         secondaryAction={
                           <IconButton
@@ -238,25 +240,26 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
                             onClick={(e) => {
                               e.stopPropagation();
                               setMenuAnchorEl(e.currentTarget);
-                              setMenuContext({
-                                chatId,
-                                projectId,
-                                index,
-                                total: project.chats.length,
-                              });
+                              setMenuContext({ chatId, projectId, index, total: project.chats.length });
                             }}
                           >
                             <MoreVertIcon fontSize="small" />
                           </IconButton>
                         }
                       >
-                        {editingChatId === chatId ? (
+                        {isEditing ? (
                           <TextField
-                            fullWidth
-                            size="small"
+                            key={chatId}
+                            inputRef={(el) => { inputRef.current = el; }}
+                            autoFocus
                             value={editChatTitle}
                             onChange={(e) => setEditChatTitle(e.target.value)}
-                            onBlur={() => {
+                            onBlur={(e) => {
+                              // If blur happens during the grace window, refocus and skip exit
+                              if (Date.now() < ignoreBlurUntil.current) {
+                                inputRef.current?.focus();
+                                return;
+                              }
                               const trimmed = editChatTitle.trim();
                               if (trimmed && trimmed !== chatTitle) {
                                 dispatch(renameChat({ chatId, title: trimmed }));
@@ -264,14 +267,19 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
                               setEditingChatId(null);
                             }}
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.currentTarget.blur();
-                              }
+                              if (e.key === 'Enter') e.currentTarget.blur();
+                              e.stopPropagation();
                             }}
-                            autoFocus
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => e.stopPropagation()}
+                            onFocus={(e) => e.stopPropagation()}
+                            fullWidth
+                            size="small"
                           />
                         ) : (
-                          <ListItemText primary={`• ${chatTitle}`} />
+                          <ListItemText
+                            primary={`• ${chatTitle}`}
+                          />
                         )}
                       </ListItem>
                     );
@@ -292,8 +300,12 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
           setMenuContext(null);
         }}
         onRename={(chatId, title) => {
-          setEditingChatId(chatId);
-          setEditChatTitle(title);
+          flushSync(() => {
+            setEditingChatId(chatId);
+            setEditChatTitle(title);
+          });
+          // 200ms window: ignore an immediate blur from menu close
+          ignoreBlurUntil.current = Date.now() + 200;
         }}
         onMoveToProject={(chatId, projectId) => {
           setChatToMove({ chatId, projectId });
@@ -301,21 +313,23 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
         }}
       />
 
-      {projectToDelete && (
-        <ConfirmDeleteProjectDialog
-          open={deleteDialogOpen}
-          projectName={projectToDelete.name}
-          onCancel={() => {
-            setDeleteDialogOpen(false);
-            setProjectToDelete(null);
-          }}
-          onConfirm={() => {
-            dispatch(deleteProject(projectToDelete.id));
-            setDeleteDialogOpen(false);
-            setProjectToDelete(null);
-          }}
-        />
-      )}
+      {
+        projectToDelete && (
+          <ConfirmDeleteProjectDialog
+            open={deleteDialogOpen}
+            projectName={projectToDelete.name}
+            onCancel={() => {
+              setDeleteDialogOpen(false);
+              setProjectToDelete(null);
+            }}
+            onConfirm={() => {
+              dispatch(deleteProject(projectToDelete.id));
+              setDeleteDialogOpen(false);
+              setProjectToDelete(null);
+            }}
+          />
+        )
+      }
 
       <ImportFromDriveDialog
         open={importDialogOpen}
@@ -352,7 +366,7 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
           setChatToMove(null);
         }}
       />
-    </Box>
+    </Box >
   );
 };
 

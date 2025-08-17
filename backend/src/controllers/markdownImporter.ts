@@ -6,6 +6,7 @@ import { ProjectsState, Project, Chat, ChatEntry, MarkdownMetadata } from '../ty
 import { ProjectModel } from '../models/Project';
 import { ChatEntryModel } from '../models/ChatEntry';
 const fs = require('fs').promises; // Use the promise-based version for async/await
+import path from 'path';
 
 export const markdownImporterEndpoint = async (request: Request, response: Response) => {
   const storage = multer.memoryStorage();
@@ -31,7 +32,7 @@ export const markdownImporterEndpoint = async (request: Request, response: Respo
     // Step 1: Parse all uploaded files into Chat and ChatEntry objects
     for (const file of files) {
       const markdown = file.buffer.toString('utf-8');
-      const metadata = extractMarkdownMetadata(markdown);
+      const metadata: MarkdownMetadata = extractMarkdownMetadata(markdown);
       const entries = extractChatEntriesPreservingMarkdown(markdown);
       const chatId = uuidv4();
 
@@ -110,12 +111,113 @@ export interface MarkdownFileData {
   classification?: Classification;
 }
 
-export const parseMarkdownFiles = async (filePaths: string[]): Promise<MarkdownFileData[]> => {
-  const markdownFilesData: MarkdownFileData[] = [];
-  for (const filePath of filePaths) {
-    const markdown = await fs.readFile(filePath, 'utf-8');
-    const metadata: MarkdownMetadata = extractMarkdownMetadata(markdown);
-    markdownFilesData.push({ filePath, metadata });
+function updateKeyToMarkdownFilesByKeyMap(map: Record<string, MarkdownFileData>, key: string, markdownFileData: MarkdownFileData): void {
+  if (!map[key]) {
+    map[key] = markdownFileData;
+  } else {
+    const existingMarkdownFileData: MarkdownFileData = map[key];
+    const existingMarkdownMetadata: MarkdownMetadata = existingMarkdownFileData.metadata;
+    const existingUpdated = existingMarkdownMetadata.updated;
+
+    const newMarkdownMetadata: MarkdownMetadata = markdownFileData.metadata;
+    const newUpdated = newMarkdownMetadata.updated;
+
+    if (existingUpdated === newUpdated) {
+      // Exact duplicate found
+      return;
+    }
+
+    if (existingUpdated < newUpdated) {
+      // Newer version found, replace existing chat
+      map[key] = markdownFileData;
+    }
   }
-  return Promise.resolve(markdownFilesData);
+}
+
+export const parseMarkdownFiles = async (filePaths: string[]): Promise<Record<string, MarkdownFileData>> => {
+  const markDownFilesDataByKey: Record<string, MarkdownFileData> = {};
+  for (const filePath of filePaths) {
+    const markdown: string = await fs.readFile(filePath, 'utf-8');
+    const metadata: MarkdownMetadata = extractMarkdownMetadata(markdown);
+    const markdownFileName = path.basename(filePath, '.md');
+    if (!metadata) {
+      console.warn(`No metadata found in file: ${filePath}`);
+      continue;
+    }
+    const key = generateKeyFromMetadata(markdownFileName, metadata);
+    const markdownFileData: MarkdownFileData = {
+      filePath,
+      metadata,
+    };
+    updateKeyToMarkdownFilesByKeyMap(markDownFilesDataByKey, key, markdownFileData);
+  }
+  return Promise.resolve(markDownFilesDataByKey);
+}
+
+const performMarkdownFilesImport = async (project: any, markdownFilesData: Record<string, MarkdownFileData>) => {
+
+  for (const key in markdownFilesData) {
+    const markdownFileData = markdownFilesData[key];
+
+    const chatsFromFiles: Chat[] = [];
+    const chatEntryDocsToInsert: ChatEntry[] = [];
+
+    if (markdownFileData.classification === 'NOT_IMPORTED') {
+      const markdownFilePath: string = markdownFileData.filePath;
+      const markdownFileName = path.basename(markdownFilePath, '.md');
+      const markdownFileContent: string = await fs.readFile(markdownFilePath, 'utf-8');
+
+      const metadata = extractMarkdownMetadata(markdownFileContent);
+      const entries = extractChatEntriesPreservingMarkdown(markdownFileContent);
+      const chatId = uuidv4();
+
+      const chat: Chat = {
+        id: chatId,
+        title: metadata?.title || markdownFileName,
+        metadata,
+      };
+      chatsFromFiles.push(chat);
+
+      entries.forEach((entry, index) => {
+        chatEntryDocsToInsert.push({
+          chatId,
+          projectId: '', // to be filled in later
+          originalPrompt: entry.originalPrompt,
+          promptSummary: entry.promptSummary,
+          response: entry.response,
+          position: index,
+        });
+      });
+
+      // Assign the existing projectId to each ChatEntry
+      chatEntryDocsToInsert.forEach(entry => {
+        entry.projectId = project.id;
+      });
+
+      project.chats.push(...chatsFromFiles);
+      await project.save();
+
+      await ChatEntryModel.insertMany(chatEntryDocsToInsert);
+    }
+  }
+};
+
+export const importMarkdownFiles = async (projectName: string, markdownFilesDataByKey: Record<string, MarkdownFileData>): Promise<any> => {
+
+  const project = await ProjectModel.findOne({ name: projectName });
+
+  if (!project) {
+    throw new Error(`Project with name ${projectName} not found`);
+  }
+
+  await performMarkdownFilesImport(project, markdownFilesDataByKey);
+
+  console.log(`Markdown files imported successfully for project: ${projectName}`);
+}
+
+export const generateKeyFromMetadata = (titleFromFileName: string, metadata: MarkdownMetadata): string => {
+  let key = metadata?.title || titleFromFileName;
+  key += metadata.user;
+  key += metadata.created;
+  return key;
 }

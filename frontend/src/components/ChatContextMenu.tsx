@@ -29,7 +29,7 @@ const ChatContextMenu: React.FC<ChatContextMenuProps> = ({
   onRename,
   onMoveToProject,
 }) => {
-const dispatch = useDispatch<AppDispatch>();
+  const dispatch = useDispatch<AppDispatch>();
   const projects = useSelector((state: RootState) => state.projects.projectList);
 
   const project = context ? projects.find(p => p.id === context.projectId) : undefined;
@@ -39,6 +39,8 @@ const dispatch = useDispatch<AppDispatch>();
       anchorEl={anchorEl}
       open={Boolean(anchorEl)}
       onClose={onClose}
+      slotProps={{ root: { disableRestoreFocus: true } }}  // MUI v5+
+      MenuListProps={{ autoFocusItem: false }}
     >
       <MenuItem
         disabled={!context || context.index === 0}
@@ -69,18 +71,19 @@ const dispatch = useDispatch<AppDispatch>();
       </MenuItem>
 
       <MenuItem
-        onClick={() => {
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
           if (!context || !project) return;
           const chat = project.chats.find(c => c.id === context.chatId);
-          if (chat) {
-            onRename(context.chatId, chat.title);
-          }
-          onClose();
+          if (chat) onRename(context.chatId, chat.title);
+          // Defer close so the input can mount and take focus first
+          requestAnimationFrame(() => onClose());
         }}
       >
         Rename
       </MenuItem>
-
+      
       <MenuItem
         onClick={() => {
           if (!context) return;

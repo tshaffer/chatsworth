@@ -6,9 +6,9 @@ const fs = require('fs').promises;
 import path from 'path';
 import { ProjectModel } from "../models";
 
-import { parseMarkdownFiles, MarkdownFileData } from '../controllers';
+import { parseMarkdownFiles, MarkdownFileData, importMarkdownFiles, generateKeyFromMetadata } from '../controllers';
 import { connectDB } from '../config/db';
-import { Chat, Project } from '../types';
+import { Chat, MarkdownMetadata, Project } from '../types';
 
 /**
  * HOW TO USE
@@ -21,6 +21,7 @@ import { Chat, Project } from '../types';
  */
 
 type CLI = {
+  projectName: string;
   chatsDirectory: string;
 };
 
@@ -34,6 +35,7 @@ function parseArgs(): CLI {
   };
 
   const cli: CLI = {
+    projectName: get('projectName'),
     chatsDirectory: get('chatsDirectory'),
   };
   return cli;
@@ -46,14 +48,14 @@ function stripNumberSuffixMd(filePath: string): string {
   return path.join(dir, base);
 }
 
-async function getAllMarkdownFiles(dirPath: string): Promise<string[]> {
+async function getAllMarkdownFilePaths(dirPath: string): Promise<string[]> {
   let files: string[] = [];
   const entries = await fs.readdir(dirPath, { withFileTypes: true });
 
   for (const entry of entries) {
     const fullPath = path.join(dirPath, entry.name);
     if (entry.isDirectory()) {
-      files = files.concat(await getAllMarkdownFiles(fullPath)); // Recursively call for subdirectories
+      files = files.concat(await getAllMarkdownFilePaths(fullPath)); // Recursively call for subdirectories
     } else {
       if (fullPath.toLowerCase().endsWith('.md')) {
         files.push(fullPath);
@@ -63,88 +65,122 @@ async function getAllMarkdownFiles(dirPath: string): Promise<string[]> {
   return files;
 }
 
-async function getMarkdownFileData(chatsDirectory: string): Promise<MarkdownFileData[]> {
-  const allFiles: string[] = await getAllMarkdownFiles(chatsDirectory);
-  const markdownFileData: MarkdownFileData[] = await parseMarkdownFiles(allFiles);
-  return markdownFileData;
+async function generateMarkDownFilesDataByKey(chatsDirectory: string): Promise<Record<string, MarkdownFileData>> {
+  const allFilePaths: string[] = await getAllMarkdownFilePaths(chatsDirectory);
+  const markDownFilesDataByKey: Record<string, MarkdownFileData> = await parseMarkdownFiles(allFilePaths);
+  return markDownFilesDataByKey;
 }
 
-async function getChatsInDbByBaseHash(): Promise<Record<string, Chat[]>> {
-  const map: Record<string, Chat[]> = {};
+// diagnostic function to check for duplicate titles in a project
+function checkForDuplicateTitles(project: Project) {
+
+  const chatsSortedByTitle = project.chats.sort((a, b) => a.title.localeCompare(b.title));
+
+  // see if any chats have duplicate titles
+  const titleCounts: Record<string, number> = {};
+  for (const chat of chatsSortedByTitle) {
+    if (!chat.metadata) {
+      throw new Error(`Chat ${chat.id} in project ${project.id} is missing metadata`);
+    }
+    const title = chat.metadata.title || chat.title;
+    if (!title || title.trim() === '') {
+      throw new Error(`Chat ${chat.id} in project ${project.id} is missing title or metadata.title`);
+    }
+    titleCounts[title] = (titleCounts[title] || 0) + 1;
+  }
+  for (const [title, count] of Object.entries(titleCounts)) {
+    if (count > 1) {
+      console.warn(`Warning: Project ${project.id} has ${count} chats with the title "${title}"`);
+    }
+  }
+}
+
+function updateDbKeyToChatMap(map: Record<string, Chat>, key: string, chat: Chat) {
+
+  // map is the mapping of key to the chat for the db chat documents 
+  // key is the unique identifier for the chat, a combination of title, user, and created date
+  // Chat is the document from the db
+
+  // Chat doesn't exist in db, so add it to the map
+  if (!map[key]) {
+    map[key] = chat;
+  } else {
+
+    /* Chat exists in db
+      check for exact duplicate (same key; same updated date)
+        if yes, skip this
+      different version (same key; different updated date)
+        compare updatedKey to updatedKey for existing chat in the map
+          older or equal to than existing updatedKey: discard
+          newer than existing updatedKey: replacing existing chat
+    */
+    // Exists, so check if it's the same
+    const existingChat: Chat = map[key];
+    const existingChatMetadata: MarkdownMetadata = existingChat.metadata;
+    if (!existingChatMetadata) {
+      throw new Error(`Chat ${chat.id} in project ${chat.id} is missing metadata`);
+    }
+    const existingUpdated = existingChatMetadata.updated;
+
+    const newChatMetadata: MarkdownMetadata = chat.metadata;
+    if (!newChatMetadata) {
+      throw new Error(`Chat ${chat.id} in project ${chat.id} is missing metadata`);
+    }
+    const newUpdated = newChatMetadata.updated;
+
+    if (existingUpdated === newUpdated) {
+      // Exact duplicate found
+      return;
+    }
+
+    if (existingUpdated < newUpdated) {
+      // Newer version found, replace existing chat
+      map[key] = chat;
+    }
+    // If existingUpdated > newUpdated, we discard the new chat
+    // as it is older or equal to the existing chat in the map.
+    // No action needed in this case.
+  }
+}
+
+async function generateChatsInDbByKey(): Promise<Record<string, Chat>> {
+  const map: Record<string, Chat> = {};
   const projects: Project[] = await ProjectModel.find().lean();
   for (const project of projects) {
-    
-    const chatsSortedByTitle = project.chats.sort((a, b) => a.title.localeCompare(b.title));
-    console.log(chatsSortedByTitle);
 
-    // see if any chats have duplicate titles
-    const titleCounts: Record<string, number> = {};
-    for (const chat of chatsSortedByTitle) {
-      if (!chat.metadata) {
-        throw new Error(`Chat ${chat.id} in project ${project.id} is missing metadata`);
-      }
-      const title = chat.metadata.title || chat.title;
-      if (!title || title.trim() === '') {
-        throw new Error(`Chat ${chat.id} in project ${project.id} is missing title or metadata.title`);
-      }
-      titleCounts[title] = (titleCounts[title] || 0) + 1;
-    }
-    console.log('Looking for duplicate titles in project:', project.id);
-    for (const [title, count] of Object.entries(titleCounts)) {
-      if (count > 1) {
-        console.warn(`Warning: Project ${project.id} has ${count} chats with the title "${title}"`);
-      }
-    }
+    checkForDuplicateTitles(project);
 
     for (const chat of project.chats) {
+
       if (!chat.metadata) {
         throw new Error(`Chat ${chat.id} in project ${project.id} is missing metadata`);
       }
 
-      let key = chat.metadata?.title || chat.title;
-      if (!key || key.trim() === '') {
-        throw new Error(`Chat ${chat.id} in project ${project.id} is missing title or metadata.title`);
-      }
-
-      key += chat.metadata.user;
-      key += chat.metadata.created;
+      const key = generateKeyFromMetadata(chat.title, chat.metadata);
 
       if (!key) {
-        throw new Error(`Chat ${chat.id} in project ${project.id} is missing baseHash`);
+        throw new Error(`Chat ${chat.id} in project ${project.id} is missing key`);
       }
-      if (!map[key]) map[key] = [];
 
-      map[key].push(chat);
+      updateDbKeyToChatMap(map, key, chat);
     }
   }
   return map;
 }
 
-function classifyMarkdownImports(markdownFileData: MarkdownFileData[], chatsByBaseHash: Record<string, Chat[]>): void {
-  // const chatsByBaseHashKey: Record<string, boolean> = {};
-  for (const markdownDataForFile of markdownFileData) {
+function classifyMarkdownImports(markdownFileData: Record<string, MarkdownFileData>, chatsInDbByKey: Record<string, Chat>): void {
+  for (const key in markdownFileData) {
+    const markdownDataForFile = markdownFileData[key];
     if (!markdownDataForFile.metadata) {
       console.log(`Markdown file ${markdownDataForFile.filePath} is missing metadata`);
       continue;
     }
-    const baseHash = markdownDataForFile.metadata.title + markdownDataForFile.metadata.user + markdownDataForFile.metadata.created;
-    // if (baseHash === 'Fullscreen Exit CausesTed Shaffer (shaffer.family@gmail.com)7/20/2025 5:26') {
-    //   debugger;
-    // }
-    // if (chatsByBaseHashKey[baseHash]) {
-    //   debugger;
-    // } else {
-    //   chatsByBaseHashKey[baseHash] = true;
-    // }
-    if (!baseHash) {
-      throw new Error(`Markdown file ${markdownDataForFile.filePath} is missing baseHash`);
-    }
-    const existingChats = chatsByBaseHash[baseHash] || [];
-    if (existingChats.length === 0) {
+    const existingChatInDb = chatsInDbByKey[key];
+    if (!existingChatInDb) {
       // no match; new file.
       markdownDataForFile.classification = 'NOT_IMPORTED';
     }
-    else if (existingChats.length === 1 && existingChats[0].metadata?.updated === markdownDataForFile.metadata.updated) {
+    else if (existingChatInDb.metadata?.updated === markdownDataForFile.metadata.updated) {
       // match found, no changes
       markdownDataForFile.classification = 'IMPORTED_UNCHANGED';
     } else {
@@ -165,13 +201,15 @@ async function main() {
 
   try {
 
-    const markdownFileData: MarkdownFileData[] = await getMarkdownFileData(cli.chatsDirectory);
+    const markdownFilesDataByKey: Record<string, MarkdownFileData> = await generateMarkDownFilesDataByKey(cli.chatsDirectory);
 
-    const chatsByBaseHash: Record<string, Chat[]> = await getChatsInDbByBaseHash();
-    console.log('Chats by Base Hash:', chatsByBaseHash);
+    const chatsInDbByKey: Record<string, Chat> = await generateChatsInDbByKey();
 
-    classifyMarkdownImports(markdownFileData, chatsByBaseHash);
-    console.log('Markdown File Data:', markdownFileData);
+    classifyMarkdownImports(markdownFilesDataByKey, chatsInDbByKey);
+
+    await importMarkdownFiles(cli.projectName, markdownFilesDataByKey);
+
+    console.log('Import completed successfully.');
 
   } catch (error) {
     console.error('Error reading files:', error);
