@@ -21,6 +21,7 @@ import { Chat, Project } from '../types';
  */
 
 type CLI = {
+  projectName: string;
   chatsDirectory: string;
 };
 
@@ -34,6 +35,7 @@ function parseArgs(): CLI {
   };
 
   const cli: CLI = {
+    projectName: get('projectName'),
     chatsDirectory: get('chatsDirectory'),
   };
   return cli;
@@ -154,17 +156,6 @@ function classifyMarkdownImports(markdownFileData: MarkdownFileData[], chatsByBa
   }
 }
 
-async function performMarkdownImports(projectId: string, markdownFileData: MarkdownFileData[]): Promise<void> {
-  markdownFileData.forEach(async fileData => {
-    if (fileData.classification === 'NOT_IMPORTED') {
-      console.log(`Importing new markdown file: ${fileData.filePath}`);
-      const markdown: string = await fs.readFile(fileData.filePath, 'utf-8');
-      const placeHolder = importMarkdownFiles(projectId, [fileData]);
-    }
-  });
-  return Promise.resolve();
-}
-
 async function main() {
 
   const cli = parseArgs();
@@ -183,6 +174,9 @@ async function main() {
 
     classifyMarkdownImports(markdownFileData, chatsByBaseHash);
     console.log('Markdown File Data:', markdownFileData);
+
+    await importMarkdownFiles(cli.projectName, markdownFileData);
+    console.log('Markdown files imported successfully.');
 
   } catch (error) {
     console.error('Error reading files:', error);
