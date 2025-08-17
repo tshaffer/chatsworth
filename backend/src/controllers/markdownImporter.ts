@@ -121,19 +121,7 @@ export const parseMarkdownFiles = async (filePaths: string[]): Promise<MarkdownF
   return Promise.resolve(markdownFilesData);
 }
 
-/*
-  for (const markdownFileData of markdownFilesData) {
-
-    const chatsFromFiles: Chat[] = [];
-    const chatEntryDocsToInsert: ChatEntry[] = [];
-
-    if (markdownFileData.classification === 'NOT_IMPORTED') {
-      console.log(`Importing file ${markdownFileData.filePath} as it is marked NOT_IMPORTED`);
-    }
-  }
-  
-*/
-const pizza = async (markdownFilesData: MarkdownFileData[]) => {
+const pizza = async (project: any, markdownFilesData: MarkdownFileData[]) => {
   for (const markdownFileData of markdownFilesData) {
 
     const chatsFromFiles: Chat[] = [];
@@ -142,21 +130,48 @@ const pizza = async (markdownFilesData: MarkdownFileData[]) => {
     if (markdownFileData.classification === 'NOT_IMPORTED') {
       console.log(`Importing file ${markdownFileData.filePath} as it is marked NOT_IMPORTED`);
       const markdownFilePath: string = markdownFileData.filePath;
+      const markdownFileName = path.basename(markdownFilePath, '.md');
       const markdownFileContent: string = await fs.readFile(markdownFilePath, 'utf-8');
       console.log('Markdown file content:', markdownFileContent);
-    }
 
-    // const markdownFilePath: string = markdownFileData.filePath;
-    // const markdownFileContent: string = await fs.readFile(markdownFilePath, 'utf-8');
-    // console.log('Markdown file content:', markdownFileContent);
+      const metadata = extractMarkdownMetadata(markdownFileContent);
+      const entries = extractChatEntriesPreservingMarkdown(markdownFileContent);
+      const chatId = uuidv4();
+
+      const chat: Chat = {
+        id: chatId,
+        title: metadata?.title || markdownFileName,
+        metadata,
+      };
+      chatsFromFiles.push(chat);
+
+      entries.forEach((entry, index) => {
+        chatEntryDocsToInsert.push({
+          chatId,
+          projectId: '', // to be filled in later
+          originalPrompt: entry.originalPrompt,
+          promptSummary: entry.promptSummary,
+          response: entry.response,
+          position: index,
+        });
+      });
+
+      // Assign the existing projectId to each ChatEntry
+      chatEntryDocsToInsert.forEach(entry => {
+        entry.projectId = project.id;
+      });
+
+      project.chats.push(...chatsFromFiles);
+      // await project.save();
+
+      // await ChatEntryModel.insertMany(chatEntryDocsToInsert);
+
+
+    } else {
+      console.log('Skipping file import as it is not marked NOT_IMPORTED:', markdownFileData.filePath);
+    }
   }
-  // markdownFilesData.forEach(async (markdownFileData: MarkdownFileData) => {
-  //   const markdownFilePath: string = markdownFilesData[0].filePath;
-  //   const markdownFileContent: string = await fs.readFile(markdownFilePath, 'utf-8');
-  //   console.log('Markdown file content:', markdownFileContent);
-  //   return;
-  // });
-}
+};
 
 export const importMarkdownFiles = async (projectName: string, markdownFilesData: MarkdownFileData[]): Promise<any> => {
 
@@ -167,7 +182,7 @@ export const importMarkdownFiles = async (projectName: string, markdownFilesData
   }
 
   console.log('Importing markdown files for project:', projectName);
-  await pizza(markdownFilesData);
+  await pizza(project, markdownFilesData);
   console.log('Markdown files data:', markdownFilesData);
   return;
 
