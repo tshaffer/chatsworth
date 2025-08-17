@@ -122,10 +122,17 @@ export const parseMarkdownFiles = async (filePaths: string[]): Promise<MarkdownF
 }
 
 const pizza = async (markdownFilesData: MarkdownFileData[]) => {
-  const markdownFilePath: string = markdownFilesData[0].filePath;
-  const markdownFileContent: string = await fs.readFile(markdownFilePath, 'utf-8');
-  console.log('Markdown file content:', markdownFileContent);
-  return;
+  for (const markdownFileData of markdownFilesData) {
+    const markdownFilePath: string = markdownFileData.filePath;
+    const markdownFileContent: string = await fs.readFile(markdownFilePath, 'utf-8');
+    console.log('Markdown file content:', markdownFileContent);
+  }
+  // markdownFilesData.forEach(async (markdownFileData: MarkdownFileData) => {
+  //   const markdownFilePath: string = markdownFilesData[0].filePath;
+  //   const markdownFileContent: string = await fs.readFile(markdownFilePath, 'utf-8');
+  //   console.log('Markdown file content:', markdownFileContent);
+  //   return;
+  // });
 }
 
 export const importMarkdownFiles = async (projectName: string, markdownFilesData: MarkdownFileData[]): Promise<any> => {
