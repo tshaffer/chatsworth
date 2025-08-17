@@ -121,11 +121,34 @@ export const parseMarkdownFiles = async (filePaths: string[]): Promise<MarkdownF
   return Promise.resolve(markdownFilesData);
 }
 
+/*
+  for (const markdownFileData of markdownFilesData) {
+
+    const chatsFromFiles: Chat[] = [];
+    const chatEntryDocsToInsert: ChatEntry[] = [];
+
+    if (markdownFileData.classification === 'NOT_IMPORTED') {
+      console.log(`Importing file ${markdownFileData.filePath} as it is marked NOT_IMPORTED`);
+    }
+  }
+  
+*/
 const pizza = async (markdownFilesData: MarkdownFileData[]) => {
   for (const markdownFileData of markdownFilesData) {
-    const markdownFilePath: string = markdownFileData.filePath;
-    const markdownFileContent: string = await fs.readFile(markdownFilePath, 'utf-8');
-    console.log('Markdown file content:', markdownFileContent);
+
+    const chatsFromFiles: Chat[] = [];
+    const chatEntryDocsToInsert: ChatEntry[] = [];
+
+    if (markdownFileData.classification === 'NOT_IMPORTED') {
+      console.log(`Importing file ${markdownFileData.filePath} as it is marked NOT_IMPORTED`);
+      const markdownFilePath: string = markdownFileData.filePath;
+      const markdownFileContent: string = await fs.readFile(markdownFilePath, 'utf-8');
+      console.log('Markdown file content:', markdownFileContent);
+    }
+
+    // const markdownFilePath: string = markdownFileData.filePath;
+    // const markdownFileContent: string = await fs.readFile(markdownFilePath, 'utf-8');
+    // console.log('Markdown file content:', markdownFileContent);
   }
   // markdownFilesData.forEach(async (markdownFileData: MarkdownFileData) => {
   //   const markdownFilePath: string = markdownFilesData[0].filePath;
@@ -148,7 +171,7 @@ export const importMarkdownFiles = async (projectName: string, markdownFilesData
   console.log('Markdown files data:', markdownFilesData);
   return;
 
-  markdownFilesData.forEach(async (markdownFileData: MarkdownFileData) => {
+  for (const markdownFileData of markdownFilesData) {
 
     const chatsFromFiles: Chat[] = [];
     const chatEntryDocsToInsert: ChatEntry[] = [];
@@ -197,5 +220,5 @@ export const importMarkdownFiles = async (projectName: string, markdownFilesData
       console.log('Skipping file import as it is not marked NOT_IMPORTED:', markdownFileData.filePath);
       return;
     }
-  });
+  };
 }
