@@ -151,7 +151,6 @@ export const parseMarkdownFiles = async (filePaths: string[]): Promise<Record<st
     };
     updateKeyToMarkdownFilesByKeyMap(markDownFilesDataByKey, key, markdownFileData);
   }
-  console.log('markDownFilesDataByKey:', markDownFilesDataByKey);
   return Promise.resolve(markDownFilesDataByKey);
 }
 
@@ -164,11 +163,9 @@ const performMarkdownFilesImport = async (project: any, markdownFilesData: Recor
     const chatEntryDocsToInsert: ChatEntry[] = [];
 
     if (markdownFileData.classification === 'NOT_IMPORTED') {
-      console.log(`Importing file ${markdownFileData.filePath} as it is marked NOT_IMPORTED`);
       const markdownFilePath: string = markdownFileData.filePath;
       const markdownFileName = path.basename(markdownFilePath, '.md');
       const markdownFileContent: string = await fs.readFile(markdownFilePath, 'utf-8');
-      console.log('Markdown file content:', markdownFileContent);
 
       const metadata = extractMarkdownMetadata(markdownFileContent);
       const entries = extractChatEntriesPreservingMarkdown(markdownFileContent);
@@ -201,10 +198,6 @@ const performMarkdownFilesImport = async (project: any, markdownFilesData: Recor
       await project.save();
 
       await ChatEntryModel.insertMany(chatEntryDocsToInsert);
-
-
-    } else {
-      console.log('Skipping file import as it is not marked NOT_IMPORTED:', markdownFileData.filePath);
     }
   }
 };

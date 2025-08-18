@@ -73,8 +73,8 @@ async function generateMarkDownFilesDataByKey(chatsDirectory: string): Promise<R
 
 // diagnostic function to check for duplicate titles in a project
 function checkForDuplicateTitles(project: Project) {
+
   const chatsSortedByTitle = project.chats.sort((a, b) => a.title.localeCompare(b.title));
-  console.log(chatsSortedByTitle);
 
   // see if any chats have duplicate titles
   const titleCounts: Record<string, number> = {};
@@ -88,7 +88,6 @@ function checkForDuplicateTitles(project: Project) {
     }
     titleCounts[title] = (titleCounts[title] || 0) + 1;
   }
-  console.log('Looking for duplicate titles in project:', project.id);
   for (const [title, count] of Object.entries(titleCounts)) {
     if (count > 1) {
       console.warn(`Warning: Project ${project.id} has ${count} chats with the title "${title}"`);
@@ -205,13 +204,12 @@ async function main() {
     const markdownFilesDataByKey: Record<string, MarkdownFileData> = await generateMarkDownFilesDataByKey(cli.chatsDirectory);
 
     const chatsInDbByKey: Record<string, Chat> = await generateChatsInDbByKey();
-    console.log('Chats by Key:', chatsInDbByKey);
 
     classifyMarkdownImports(markdownFilesDataByKey, chatsInDbByKey);
-    console.log('Markdown File Data:', markdownFilesDataByKey);
 
     await importMarkdownFiles(cli.projectName, markdownFilesDataByKey);
-    console.log('Markdown files imported successfully.');
+
+    console.log('Import completed successfully.');
 
   } catch (error) {
     console.error('Error reading files:', error);
