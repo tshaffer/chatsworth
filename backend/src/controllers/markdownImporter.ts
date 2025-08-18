@@ -32,7 +32,7 @@ export const markdownImporterEndpoint = async (request: Request, response: Respo
     // Step 1: Parse all uploaded files into Chat and ChatEntry objects
     for (const file of files) {
       const markdown = file.buffer.toString('utf-8');
-      const metadata = extractMarkdownMetadata(markdown);
+      const metadata: MarkdownMetadata = extractMarkdownMetadata(markdown);
       const entries = extractChatEntriesPreservingMarkdown(markdown);
       const chatId = uuidv4();
 
@@ -111,19 +111,27 @@ export interface MarkdownFileData {
   classification?: Classification;
 }
 
-export const parseMarkdownFiles = async (filePaths: string[]): Promise<MarkdownFileData[]> => {
-  const markdownFilesData: MarkdownFileData[] = [];
+export const parseMarkdownFiles = async (filePaths: string[]): Promise<Record<string, MarkdownFileData>> => {
+  const markDownFilesDataByKey: Record<string, MarkdownFileData> = {};
   for (const filePath of filePaths) {
     const markdown: string = await fs.readFile(filePath, 'utf-8');
     const metadata: MarkdownMetadata = extractMarkdownMetadata(markdown);
-    markdownFilesData.push({ filePath, metadata });
+    const markdownFileName = path.basename(filePath, '.md');
+    if (!metadata) {
+      console.warn(`No metadata found in file: ${filePath}`);
+      continue;
+    }
+    const key = generateKeyFromMetadata(markdownFileName, metadata);
+    markDownFilesDataByKey[key] = { filePath, metadata };
   }
-  return Promise.resolve(markdownFilesData);
+  console.log('markDownFilesDataByKey:', markDownFilesDataByKey);
+  return Promise.resolve(markDownFilesDataByKey);
 }
 
-const performMarkdownFilesImport = async (project: any, markdownFilesData: MarkdownFileData[]) => {
+const performMarkdownFilesImport = async (project: any, markdownFilesData: Record<string, MarkdownFileData>) => {
 
-  for (const markdownFileData of markdownFilesData) {
+  for (const key in markdownFilesData) {
+    const markdownFileData = markdownFilesData[key];
 
     const chatsFromFiles: Chat[] = [];
     const chatEntryDocsToInsert: ChatEntry[] = [];
@@ -174,7 +182,7 @@ const performMarkdownFilesImport = async (project: any, markdownFilesData: Markd
   }
 };
 
-export const importMarkdownFiles = async (projectName: string, markdownFilesData: MarkdownFileData[]): Promise<any> => {
+export const importMarkdownFiles = async (projectName: string, markdownFilesDataByKey: Record<string, MarkdownFileData>): Promise<any> => {
 
   const project = await ProjectModel.findOne({ name: projectName });
 
@@ -182,7 +190,14 @@ export const importMarkdownFiles = async (projectName: string, markdownFilesData
     throw new Error(`Project with name ${projectName} not found`);
   }
 
-  await performMarkdownFilesImport(project, markdownFilesData);
+  await performMarkdownFilesImport(project, markdownFilesDataByKey);
 
   console.log(`Markdown files imported successfully for project: ${projectName}`);
+}
+
+export const generateKeyFromMetadata = (titleFromFileName: string, metadata: MarkdownMetadata): string => {
+  let key = metadata?.title || titleFromFileName;
+  key += metadata.user;
+  key += metadata.created;
+  return key;
 }

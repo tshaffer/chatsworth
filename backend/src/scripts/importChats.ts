@@ -6,7 +6,7 @@ const fs = require('fs').promises;
 import path from 'path';
 import { ProjectModel } from "../models";
 
-import { parseMarkdownFiles, MarkdownFileData, importMarkdownFiles } from '../controllers';
+import { parseMarkdownFiles, MarkdownFileData, importMarkdownFiles, generateKeyFromMetadata } from '../controllers';
 import { connectDB } from '../config/db';
 import { Chat, MarkdownMetadata, Project } from '../types';
 
@@ -65,10 +65,10 @@ async function getAllMarkdownFilePaths(dirPath: string): Promise<string[]> {
   return files;
 }
 
-async function generateMarkdownFilesData(chatsDirectory: string): Promise<MarkdownFileData[]> {
+async function generateMarkDownFilesDataByKey(chatsDirectory: string): Promise<Record<string, MarkdownFileData>> {
   const allFilePaths: string[] = await getAllMarkdownFilePaths(chatsDirectory);
-  const markdownFilesData: MarkdownFileData[] = await parseMarkdownFiles(allFilePaths);
-  return markdownFilesData;
+  const markDownFilesDataByKey: Record<string, MarkdownFileData> = await parseMarkdownFiles(allFilePaths);
+  return markDownFilesDataByKey;
 }
 
 // diagnostic function to check for duplicate titles in a project
@@ -157,13 +157,7 @@ async function generateChatsInDbByKey(): Promise<Record<string, Chat>> {
         throw new Error(`Chat ${chat.id} in project ${project.id} is missing metadata`);
       }
 
-      let key = chat.metadata?.title || chat.title;
-      if (!key || key.trim() === '') {
-        throw new Error(`Chat ${chat.id} in project ${project.id} is missing title or metadata.title`);
-      }
-
-      key += chat.metadata.user;
-      key += chat.metadata.created;
+      const key = generateKeyFromMetadata(chat.title, chat.metadata);
 
       if (!key) {
         throw new Error(`Chat ${chat.id} in project ${project.id} is missing key`);
@@ -175,16 +169,12 @@ async function generateChatsInDbByKey(): Promise<Record<string, Chat>> {
   return map;
 }
 
-function classifyMarkdownImports(markdownFileData: MarkdownFileData[], chatsInDbByKey: Record<string, Chat>): void {
-  // const chatsByBaseHashKey: Record<string, boolean> = {};
-  for (const markdownDataForFile of markdownFileData) {
+function classifyMarkdownImports(markdownFileData: Record<string, MarkdownFileData>, chatsInDbByKey: Record<string, Chat>): void {
+  for (const key in markdownFileData) {
+    const markdownDataForFile = markdownFileData[key];
     if (!markdownDataForFile.metadata) {
       console.log(`Markdown file ${markdownDataForFile.filePath} is missing metadata`);
       continue;
-    }
-    const key = markdownDataForFile.metadata.title + markdownDataForFile.metadata.user + markdownDataForFile.metadata.created;
-    if (!key) {
-      throw new Error(`Markdown file ${markdownDataForFile.filePath} is missing key`);
     }
     const existingChatInDb = chatsInDbByKey[key];
     if (!existingChatInDb) {
@@ -212,15 +202,15 @@ async function main() {
 
   try {
 
-    const markdownFileData: MarkdownFileData[] = await generateMarkdownFilesData(cli.chatsDirectory);
+    const markdownFilesDataByKey: Record<string, MarkdownFileData> = await generateMarkDownFilesDataByKey(cli.chatsDirectory);
 
     const chatsInDbByKey: Record<string, Chat> = await generateChatsInDbByKey();
     console.log('Chats by Key:', chatsInDbByKey);
 
-    classifyMarkdownImports(markdownFileData, chatsInDbByKey);
-    console.log('Markdown File Data:', markdownFileData);
+    classifyMarkdownImports(markdownFilesDataByKey, chatsInDbByKey);
+    console.log('Markdown File Data:', markdownFilesDataByKey);
 
-    await importMarkdownFiles(cli.projectName, markdownFileData);
+    await importMarkdownFiles(cli.projectName, markdownFilesDataByKey);
     console.log('Markdown files imported successfully.');
 
   } catch (error) {
