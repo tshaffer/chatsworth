@@ -69,13 +69,16 @@ const ChatContextMenu: React.FC<ChatContextMenuProps> = ({
       </MenuItem>
 
       <MenuItem
-        onMouseDown={(e) => e.stopPropagation()} // belt & suspenders (mousedown fires first)
+        onMouseDown={(e) => e.stopPropagation()}   // fires before click
         onClick={(e) => {
-          e.stopPropagation(); // prevent bubbling to ListItem
+          e.stopPropagation();
           if (!context || !project) return;
           const chat = project.chats.find(c => c.id === context.chatId);
-          if (chat) onRename(context.chatId, chat.title);
-          onClose();
+          if (chat) {
+            onRename(context.chatId, chat.title);   // 1) set edit state first
+          }
+          // 2) close the menu on next tick so the edit field can mount first
+          setTimeout(() => onClose(), 0);
         }}
       >
         Rename

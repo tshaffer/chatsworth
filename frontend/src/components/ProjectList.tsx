@@ -43,6 +43,7 @@ import ImportFromDriveDialog from './ImportFromDriveDialog';
 import ConfirmDeleteProjectDialog from './ConfirmDeleteDialog';
 
 import { makeSelectFilteredProjects } from '../redux/selectors/searchSelectors';
+import { flushSync } from 'react-dom';
 
 interface ProjectListProps {
   searchQuery?: string | null;
@@ -221,23 +222,17 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
                     const isEditing = editingChatId === chatId;
 
                     return (
+
                       <ListItem
-                        key={chatId}
-                        sx={{
-                          pl: 4,
-                          backgroundColor: selectedChatId === chatId ? 'action.selected' : undefined,
-                          cursor: isEditing ? 'default' : 'pointer',
-                        }}
                         onClick={(e) => {
-                          // If any edit is active, ignore parent click to avoid flipping back
-                          if (editingChatId) return;
-                          if (!isEditing) dispatch(setSelectedChatId(chatId));
+                          if (editingChatId || menuAnchorEl) return; // <- guard
+                          dispatch(setSelectedChatId(chatId));
                         }}
                         secondaryAction={
                           <IconButton
                             size="small"
                             onClick={(e) => {
-                              e.stopPropagation(); // prevent bubbling to ListItem
+                              e.stopPropagation();
                               setMenuAnchorEl(e.currentTarget);
                               setMenuContext({ chatId, projectId, index, total: project.chats.length });
                             }}
@@ -248,7 +243,7 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
                       >
                         {isEditing ? (
                           <TextField
-                            key={chatId} // force clean mount when entering edit
+                            key={chatId}
                             fullWidth
                             size="small"
                             value={editChatTitle}
@@ -297,8 +292,12 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
         }}
         onRename={(chatId, title) => {
           console.log('Renaming chatId:', chatId, 'with title:', title);
-          setEditingChatId(chatId);
-          setEditChatTitle(title);
+          flushSync(() => {
+            setEditingChatId(chatId);
+            setEditChatTitle(title);
+            // Optional: ensure the row is the selected one too
+            setSelectedChatId && dispatch(setSelectedChatId(chatId));
+          });
         }}
         onMoveToProject={(chatId, projectId) => {
           setChatToMove({ chatId, projectId });
