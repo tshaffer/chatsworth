@@ -69,13 +69,12 @@ const ChatContextMenu: React.FC<ChatContextMenuProps> = ({
       </MenuItem>
 
       <MenuItem
-        onClick={(e: any) => {
-          e.stopPropagation();               // ⬅️ prevent bubbling to ListItem
+        onMouseDown={(e) => e.stopPropagation()} // belt & suspenders (mousedown fires first)
+        onClick={(e) => {
+          e.stopPropagation(); // prevent bubbling to ListItem
           if (!context || !project) return;
           const chat = project.chats.find(c => c.id === context.chatId);
-          if (chat) {
-            onRename(context.chatId, chat.title);
-          }
+          if (chat) onRename(context.chatId, chat.title);
           onClose();
         }}
       >

@@ -218,6 +218,7 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
                   {project.chats.map((chat: any, index: number) => {
                     const chatId = isSemanticChat(chat) ? chat.chatId : chat.id;
                     const chatTitle = isSemanticChat(chat) ? chat.chatTitle : chat.title;
+                    const isEditing = editingChatId === chatId;
 
                     return (
                       <ListItem
@@ -225,23 +226,18 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
                         sx={{
                           pl: 4,
                           backgroundColor: selectedChatId === chatId ? 'action.selected' : undefined,
-                          cursor: (editingChatId === chatId) ? 'default' : 'pointer',
+                          cursor: isEditing ? 'default' : 'pointer',
                         }}
                         onClick={(e) => {
-                          // If ANY edit is active, ignore parent click to avoid race/flip
+                          // If any edit is active, ignore parent click to avoid flipping back
                           if (editingChatId) return;
-                          console.log('editingChatId is null or undefined');
-                          if (!(editingChatId === chatId)) {
-                            console.log('Setting selected chatId:', chatId);
-                            dispatch(setSelectedChatId(chatId));
-                          }
+                          if (!isEditing) dispatch(setSelectedChatId(chatId));
                         }}
                         secondaryAction={
                           <IconButton
                             size="small"
                             onClick={(e) => {
-                              // Prevent this click from reaching the ListItem
-                              e.stopPropagation();
+                              e.stopPropagation(); // prevent bubbling to ListItem
                               setMenuAnchorEl(e.currentTarget);
                               setMenuContext({ chatId, projectId, index, total: project.chats.length });
                             }}
@@ -250,9 +246,9 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
                           </IconButton>
                         }
                       >
-                        {editingChatId === chatId ? (
+                        {isEditing ? (
                           <TextField
-                            key={chatId}             // ensure clean mount when entering edit
+                            key={chatId} // force clean mount when entering edit
                             fullWidth
                             size="small"
                             value={editChatTitle}
@@ -268,9 +264,9 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
                               if (e.key === 'Enter') e.currentTarget.blur();
                               e.stopPropagation();
                             }}
-                            onMouseDown={(e) => e.stopPropagation()}   // ← important
-                            onClick={(e) => e.stopPropagation()}       // ← important
-                            onFocus={(e) => e.stopPropagation()}       // belt + suspenders
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => e.stopPropagation()}
+                            onFocus={(e) => e.stopPropagation()}
                             autoFocus
                             sx={{ '& .MuiInputBase-input': { color: '#17e786ff' } }}
                           />
