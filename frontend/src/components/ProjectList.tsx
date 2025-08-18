@@ -238,12 +238,7 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
                             onClick={(e) => {
                               e.stopPropagation();
                               setMenuAnchorEl(e.currentTarget);
-                              setMenuContext({
-                                chatId,
-                                projectId,
-                                index,
-                                total: project.chats.length,
-                              });
+                              setMenuContext({ chatId, projectId, index, total: project.chats.length });
                             }}
                           >
                             <MoreVertIcon fontSize="small" />
@@ -251,27 +246,41 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
                         }
                       >
                         {editingChatId === chatId ? (
-                          <TextField
-                            fullWidth
-                            size="small"
-                            value={editChatTitle}
-                            onChange={(e) => setEditChatTitle(e.target.value)}
-                            onBlur={() => {
-                              const trimmed = editChatTitle.trim();
-                              if (trimmed && trimmed !== chatTitle) {
-                                dispatch(renameChat({ chatId, title: trimmed }));
-                              }
-                              setEditingChatId(null);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.currentTarget.blur();
-                              }
-                            }}
-                            autoFocus
-                          />
-                        ) : (
-                          <ListItemText primary={`• ${chatTitle}`} />
+                          (() => {
+                            debugger; return (
+                              <TextField
+                                fullWidth
+                                size="small"
+                                value={editChatTitle}
+                                onChange={(e) => setEditChatTitle(e.target.value)}
+                                onBlur={() => {
+                                  const trimmed = editChatTitle.trim();
+                                  if (trimmed && trimmed !== chatTitle) {
+                                    dispatch(renameChat({ chatId, title: trimmed }));
+                                  }
+                                  setEditingChatId(null);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') e.currentTarget.blur();
+                                  // optional: prevent ListItem click bubbling just in case
+                                  e.stopPropagation?.();
+                                }}
+                                autoFocus
+                                // ✅ color the actual input text
+                                sx={{
+                                  '& .MuiInputBase-input': { color: '#17e786ff' },
+                                }}
+                              />
+                            );
+                          })()
+                        ) : (<ListItemText
+                          primary={`• ${chatTitle}`}
+                          primaryTypographyProps={{
+                            // this only applies in the non-editing branch
+                            sx: { color: 'pink' },
+                          }}
+                          secondaryTypographyProps={{ sx: { color: 'green' } }}
+                        />
                         )}
                       </ListItem>
                     );
