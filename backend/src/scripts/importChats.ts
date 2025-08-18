@@ -105,43 +105,43 @@ function updateDbKeyToChatMap(map: Record<string, Chat>, key: string, chat: Chat
   // Chat doesn't exist in db, so add it to the map
   if (!map[key]) {
     map[key] = chat;
-  }
+  } else {
 
-  /* Chat exists in db
-    check for exact duplicate (same key; same updated date)
-      if yes, skip this
-    different version (same key; different updated date)
-      compare updatedKey to updatedKey for existing chat in the map
-        older or equal to than existing updatedKey: discard
-        newer than existing updatedKey: replacing existing chat
-  */
-  // Exists, so check if it's the same
-  const existingChat: Chat = map[key];
-  const existingChatMetadata: MarkdownMetadata = existingChat.metadata;
-  if (!existingChatMetadata) {
-    throw new Error(`Chat ${chat.id} in project ${chat.id} is missing metadata`);
-  }
-  const existingUpdated = existingChatMetadata.updated;
+    /* Chat exists in db
+      check for exact duplicate (same key; same updated date)
+        if yes, skip this
+      different version (same key; different updated date)
+        compare updatedKey to updatedKey for existing chat in the map
+          older or equal to than existing updatedKey: discard
+          newer than existing updatedKey: replacing existing chat
+    */
+    // Exists, so check if it's the same
+    const existingChat: Chat = map[key];
+    const existingChatMetadata: MarkdownMetadata = existingChat.metadata;
+    if (!existingChatMetadata) {
+      throw new Error(`Chat ${chat.id} in project ${chat.id} is missing metadata`);
+    }
+    const existingUpdated = existingChatMetadata.updated;
 
-  const newChatMetadata: MarkdownMetadata = chat.metadata;
-  if (!newChatMetadata) {
-    throw new Error(`Chat ${chat.id} in project ${chat.id} is missing metadata`);
-  }
-  const newUpdated = newChatMetadata.updated;
+    const newChatMetadata: MarkdownMetadata = chat.metadata;
+    if (!newChatMetadata) {
+      throw new Error(`Chat ${chat.id} in project ${chat.id} is missing metadata`);
+    }
+    const newUpdated = newChatMetadata.updated;
 
-  if (existingUpdated === newUpdated) {
-    // Exact duplicate found
-    return;
-  }
+    if (existingUpdated === newUpdated) {
+      // Exact duplicate found
+      return;
+    }
 
-  if (existingUpdated < newUpdated) {
-    // Newer version found, replace existing chat
-    map[key] = chat;
+    if (existingUpdated < newUpdated) {
+      // Newer version found, replace existing chat
+      map[key] = chat;
+    }
+    // If existingUpdated > newUpdated, we discard the new chat
+    // as it is older or equal to the existing chat in the map.
+    // No action needed in this case.
   }
-  // If existingUpdated > newUpdated, we discard the new chat
-  // as it is older or equal to the existing chat in the map.
-  // No action needed in this case.
-
 }
 
 async function generateChatsInDbByKey(): Promise<Record<string, Chat>> {
@@ -181,7 +181,7 @@ function classifyMarkdownImports(markdownFileData: Record<string, MarkdownFileDa
       // no match; new file.
       markdownDataForFile.classification = 'NOT_IMPORTED';
     }
-    else if (existingChatInDb .metadata?.updated === markdownDataForFile.metadata.updated) {
+    else if (existingChatInDb.metadata?.updated === markdownDataForFile.metadata.updated) {
       // match found, no changes
       markdownDataForFile.classification = 'IMPORTED_UNCHANGED';
     } else {

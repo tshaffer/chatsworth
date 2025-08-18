@@ -111,6 +111,29 @@ export interface MarkdownFileData {
   classification?: Classification;
 }
 
+function updateKeyToMarkdownFilesByKeyMap(map: Record<string, MarkdownFileData>, key: string, markdownFileData: MarkdownFileData): void {
+  if (!map[key]) {
+    map[key] = markdownFileData;
+  } else {
+    const existingMarkdownFileData: MarkdownFileData = map[key];
+    const existingMarkdownMetadata: MarkdownMetadata = existingMarkdownFileData.metadata;
+    const existingUpdated = existingMarkdownMetadata.updated;
+
+    const newMarkdownMetadata: MarkdownMetadata = markdownFileData.metadata;
+    const newUpdated = newMarkdownMetadata.updated;
+
+    if (existingUpdated === newUpdated) {
+      // Exact duplicate found
+      return;
+    }
+
+    if (existingUpdated < newUpdated) {
+      // Newer version found, replace existing chat
+      map[key] = markdownFileData;
+    }
+  }
+}
+
 export const parseMarkdownFiles = async (filePaths: string[]): Promise<Record<string, MarkdownFileData>> => {
   const markDownFilesDataByKey: Record<string, MarkdownFileData> = {};
   for (const filePath of filePaths) {
@@ -122,7 +145,11 @@ export const parseMarkdownFiles = async (filePaths: string[]): Promise<Record<st
       continue;
     }
     const key = generateKeyFromMetadata(markdownFileName, metadata);
-    markDownFilesDataByKey[key] = { filePath, metadata };
+    const markdownFileData: MarkdownFileData = {
+      filePath,
+      metadata,
+    };
+    updateKeyToMarkdownFilesByKeyMap(markDownFilesDataByKey, key, markdownFileData);
   }
   console.log('markDownFilesDataByKey:', markDownFilesDataByKey);
   return Promise.resolve(markDownFilesDataByKey);
