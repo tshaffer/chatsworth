@@ -53,7 +53,7 @@ interface ProjectListProps {
 const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults }) => {
   const dispatch = useDispatch<AppDispatch>();
   const selectedChatId = useSelector((state: RootState) => state.projects.selectedChatId);
-  const allProjects = useSelector((state: RootState) => state.projects.projectList);
+  const allProjects: Project[] = useSelector((state: RootState) => state.projects.projectList);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const ignoreBlurUntil = useRef<number>(0);
@@ -114,7 +114,8 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
     }
 
     setExpandedProjectIds(expanded);
-  }, [searchQuery, semanticResults, allProjects, projects]);
+  }, [searchQuery, semanticResults, allProjects]);
+  // }, [searchQuery, semanticResults, allProjects, projects]);
 
   const toggleProject = (projectId: string) => {
     setExpandedProjectIds((prev) => {
