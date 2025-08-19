@@ -95,14 +95,11 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
   const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(new Set());
 
   // Auto-expand:
-  // - No search → expand all projects
+  // - No search → no change to expanded
   // - With search or semantic results → expand only those with chats
   useEffect(() => {
     const expanded = new Set<string>();
-
-    if (!searchQuery && !semanticResults) {
-      allProjects.forEach((p) => expanded.add(p.id));
-    } else {
+    if (!(!searchQuery && !semanticResults)) {
       const toCheck: (Project | SemanticSearchResultProject)[] =
         (semanticResults as any) ?? projects;
       toCheck.forEach((project) => {
@@ -111,9 +108,8 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
           expanded.add(projectId);
         }
       });
+      setExpandedProjectIds(expanded);
     }
-
-    setExpandedProjectIds(expanded);
   }, [searchQuery, semanticResults, allProjects]);
   // }, [searchQuery, semanticResults, allProjects, projects]);
 
