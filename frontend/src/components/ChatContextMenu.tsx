@@ -39,6 +39,8 @@ const ChatContextMenu: React.FC<ChatContextMenuProps> = ({
       anchorEl={anchorEl}
       open={Boolean(anchorEl)}
       onClose={onClose}
+      slotProps={{ root: { disableRestoreFocus: true } }}  // MUI v5+
+      MenuListProps={{ autoFocusItem: false }}
     >
       <MenuItem
         disabled={!context || context.index === 0}
@@ -69,21 +71,19 @@ const ChatContextMenu: React.FC<ChatContextMenuProps> = ({
       </MenuItem>
 
       <MenuItem
-        onMouseDown={(e) => e.stopPropagation()}   // fires before click
+        onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation();
           if (!context || !project) return;
           const chat = project.chats.find(c => c.id === context.chatId);
-          if (chat) {
-            onRename(context.chatId, chat.title);   // 1) set edit state first
-          }
-          // 2) close the menu on next tick so the edit field can mount first
-          setTimeout(() => onClose(), 0);
+          if (chat) onRename(context.chatId, chat.title);
+          // Defer close so the input can mount and take focus first
+          requestAnimationFrame(() => onClose());
         }}
       >
         Rename
       </MenuItem>
-
+      
       <MenuItem
         onClick={() => {
           if (!context) return;
