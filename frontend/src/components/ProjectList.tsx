@@ -227,6 +227,12 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
                     return (
 
                       <ListItem
+                        key={chatId}
+                        sx={{
+                          pl: 4,
+                          backgroundColor: selectedChatId === chatId ? 'action.selected' : undefined,
+                          cursor: editingChatId === chatId ? 'default' : 'pointer',
+                        }}
                         onClick={() => {
                           if (editingChatId || menuAnchorEl) return;
                           dispatch(setSelectedChatId(chatId));
