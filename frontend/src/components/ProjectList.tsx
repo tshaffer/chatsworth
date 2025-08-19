@@ -272,13 +272,10 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
                             onFocus={(e) => e.stopPropagation()}
                             fullWidth
                             size="small"
-                            sx={{ '& .MuiInputBase-input': { color: '#17e786ff' } }}
                           />
                         ) : (
                           <ListItemText
                             primary={`• ${chatTitle}`}
-                            primaryTypographyProps={{ sx: { color: 'pink' } }}
-                            secondaryTypographyProps={{ sx: { color: 'green' } }}
                           />
                         )}
                       </ListItem>
