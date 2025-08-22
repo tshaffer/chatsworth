@@ -1,21 +1,16 @@
 /**
- * Usage:
+ * Bulk importer optimized for your schema:
+ *   - ProjectModel: { projectId, name, chats: [{ chatId, title, projectId, projectName, messageCount, metadata }] }
+ *   - ChatEntryModel: { projectId, chatId, position, originalPrompt, promptSummary, response, createdAt, updatedAt, exportedAt, source, embedding? }
+ *
  *   From
  *      /Users/tedshaffer/Documents/Projects/chatsworth/backend
  *          npx ts-node src/scripts/import-conversations-to-db.ts /Users/tedshaffer/Documents/Projects/chatgpt-export-parser/data/chatGPTExport-08-21-25-0/conversations-with-projects.json
  *
- * 
- *    npx ts-node src/scripts/import-conversations-to-db.ts /abs/path/to/conversations-with-projects.json
- *
- * Env:
- *   MONGO_URI="mongodb://localhost:27017/chatsworth"   # or your Atlas URI
- *   # optional: MONGO_DB_NAME="chatsworth"
- *
  * Notes:
- * - Matches your schema:
- *   - ProjectModel: { projectId, name, chats: [{ chatId, title, projectId, projectName, messageCount, metadata }] }
- *   - ChatEntryModel: { projectId, chatId, position, originalPrompt, promptSummary, response, createdAt, updatedAt, exportedAt, source }
+ * - Idempotent: entries are upserted by (chatId, position); chats are refreshed via pull→push.
  */
+
 import dotenv from 'dotenv';
 dotenv.config({
   path: path.resolve(__dirname, '../../.env')
@@ -31,9 +26,10 @@ if (!MONGO_URI) {
   process.exit(1);
 }
 
-import { ProjectModel } from "../models/Project";     // adjust path if needed
-import { ChatEntryModel } from "../models/ChatEntry"; // adjust path if needed
+import { ProjectModel } from "../models/Project";     // adjust if your path differs
+import { ChatEntryModel } from "../models/ChatEntry"; // adjust if your path differs
 
+// ---------- Types from your export ----------
 type ProjectTag = { id: string; name: string } | null;
 
 type ExportMessage = {
@@ -46,21 +42,22 @@ type ExportNode = {
   parent?: string | null;
   children?: string[] | null;
   message?: ExportMessage | null;
-  create_time?: number | string | null; // ChatGPT export
+  create_time?: number | string | null; // ChatGPT export often seconds
 };
 
 type ExportConversation = {
-  id: string;                       // chatId
+  id: string; // chatId
   title: string;
   mapping: Record<string, ExportNode>;
   create_time?: number | string | null;
   update_time?: number | string | null;
-  project: ProjectTag;              // injected by apply-project-map.ts
+  project: ProjectTag; // injected by apply-project-map.ts
 };
 
+// ---------- Helpers ----------
 function toDateOrNull(v: unknown): Date | null {
   if (v == null) return null;
-  if (typeof v === "number") return new Date(v * 1000); // export often uses epoch seconds
+  if (typeof v === "number") return new Date(v * 1000);
   const d = new Date(String(v));
   return isNaN(d.getTime()) ? null : d;
 }
@@ -80,7 +77,7 @@ function orderedMessages(mapping: Record<string, ExportNode>): FlatMsg[] {
     const text = extractText(node.message);
     if (!text) continue;
 
-    // Prefer numeric timestamp; unknown => +Infinity so it sorts to the end
+    // prefer numeric timestamp; unknown => +Infinity so it sorts last
     let t = Number.POSITIVE_INFINITY;
     if (typeof node.create_time === "number") t = node.create_time;
     else if (typeof node.create_time === "string") {
@@ -102,16 +99,19 @@ function pairUserAssistant(
   exportedAt: Date
 ) {
   const entries: Array<{
-    projectId: string;
-    chatId: string;
-    position: number;
-    originalPrompt: string;
-    promptSummary: string;
-    response: string;
-    createdAt?: Date;
-    updatedAt?: Date;
-    exportedAt: Date;
-    source: string;
+    filter: { chatId: string; position: number };
+    doc: {
+      projectId: string;
+      chatId: string;
+      position: number;
+      originalPrompt: string;
+      promptSummary: string;
+      response: string;
+      createdAt?: Date;
+      updatedAt?: Date;
+      exportedAt: Date;
+      source: string;
+    };
   }> = [];
 
   let pos = 0;
@@ -137,24 +137,35 @@ function pairUserAssistant(
     const summary = prompt.split(/\n+/)[0].slice(0, 200);
 
     entries.push({
-      projectId,
-      chatId,
-      position: pos++,
-      originalPrompt: prompt,
-      promptSummary: summary,
-      response,
-      createdAt,
-      updatedAt,
-      exportedAt,
-      source: "chatgpt-export",
+      filter: { chatId, position: pos },
+      doc: {
+        projectId,
+        chatId,
+        position: pos,
+        originalPrompt: prompt,
+        promptSummary: summary,
+        response,
+        createdAt,
+        updatedAt,
+        exportedAt,
+        source: "chatgpt-export",
+      },
     });
 
+    pos++;
     i = j; // advance past the assistant
   }
 
   return entries;
 }
 
+function chunk<T>(arr: T[], size = 1000): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+// ---------- Main ----------
 async function main() {
   const convFile = process.argv[2];
   if (!convFile) {
@@ -165,58 +176,62 @@ async function main() {
   const abs = path.resolve(convFile);
   const raw = await fs.readFile(abs, "utf8");
   const conversations = JSON.parse(raw) as ExportConversation[];
-
-  if (!Array.isArray(conversations)) {
-    throw new Error("conversations-with-projects.json must be an array");
-  }
+  if (!Array.isArray(conversations)) throw new Error("conversations-with-projects.json must be an array");
 
   await mongoose.connect(MONGO_URI, { dbName: process.env.MONGO_DB_NAME || undefined });
   console.log(`✅ Connected to Mongo\nImporting from: ${abs}\nConversations: ${conversations.length}`);
 
   const now = new Date();
 
-  let chatsUpserted = 0;
-  let entriesInserted = 0;
+  // 1) Unique projects (projectId -> name)
+  const projectMap = new Map<string, string>();
+  for (const conv of conversations) {
+    const pid = conv.project?.id ?? "manual_unassigned";
+    const pname = conv.project?.name ?? "Unassigned";
+    // last write wins if names conflict (shouldn't)
+    projectMap.set(pid, pname);
+  }
 
-  const touchedProjectIds = new Set<string>();
-  const createdProjectIds = new Set<string>();
+  // 2) Bulk upsert all projects
+  const projectOps = Array.from(projectMap.entries()).map(([projectId, projectName]) => ({
+    updateOne: {
+      filter: { projectId },
+      update: {
+        $set: { name: projectName, lastSyncedAt: now },
+        $setOnInsert: { projectId, chats: [] },
+      },
+      upsert: true,
+    },
+  }));
+
+  let projectsCreated = 0;
+  let projectsUpdated = 0;
+
+  if (projectOps.length) {
+    const projChunks = chunk(projectOps, 500); // keep chunks modest
+    for (const ops of projChunks) {
+      const res: any = await ProjectModel.bulkWrite(ops, { ordered: false });
+      const up = Number(res.upsertedCount || 0);
+      projectsCreated += up;
+      projectsUpdated += ops.length - up;
+    }
+  }
+
+  // 3) Prepare chat replacements (pull → push) and entry upserts
+  type UpdateOne = { updateOne: { filter: any; update: any; upsert?: boolean } };
+  const chatOps: UpdateOne[] = [];
+  const entryOps: UpdateOne[] = [];
 
   for (const conv of conversations) {
     const chatId = conv.id;
     const projectId = conv.project?.id ?? "manual_unassigned";
     const projectName = conv.project?.name ?? "Unassigned";
 
-    // Build flat message list & counts
+    // messages & counts
     const msgs = orderedMessages(conv.mapping);
-    const messageCount = msgs.length;
+    const messageCount = msgs.length; // OR pair count if you prefer
 
-    // ---- Upsert project (count once per unique project, detect creation reliably)
-    const res = await ProjectModel.updateOne(
-      { projectId },
-      {
-        $set: { name: projectName, lastSyncedAt: now },
-        $setOnInsert: { projectId, chats: [] },
-      },
-      { upsert: true }
-    );
-
-    // mark we've seen this projectId at least once
-    touchedProjectIds.add(projectId);
-
-    // robust creation detection across drivers:
-    const wasCreated =
-      (res as any).upsertedId != null || // preferred: present when inserted
-      (typeof (res as any).upsertedCount === 'number' && (res as any).upsertedCount > 0) ||
-      ((res as any).matchedCount === 0); // fallback
-
-    if (wasCreated) createdProjectIds.add(projectId);
-
-    // ---- Replace (pull/push) this chat subdoc to keep it single & fresh
-    await ProjectModel.updateOne(
-      { projectId },
-      { $pull: { chats: { chatId } } }
-    );
-
+    // Build chat meta
     const chatMeta = {
       chatId,
       title: conv.title || "(Untitled)",
@@ -224,7 +239,7 @@ async function main() {
       projectName,
       messageCount,
       metadata: {
-        user: "", // unknown in export; leave blank or remove this key if you prefer
+        user: "",
         created: toDateOrNull(conv.create_time),
         updated: toDateOrNull(conv.update_time),
         exportedAt: now,
@@ -232,38 +247,58 @@ async function main() {
       },
     };
 
-    await ProjectModel.updateOne(
-      { projectId },
-      { $push: { chats: chatMeta } }
-    );
-    chatsUpserted++;
+    // Pull old subdoc, then push fresh one — order matters
+    chatOps.push({
+      updateOne: {
+        filter: { projectId },
+        update: { $pull: { chats: { chatId } } },
+      },
+    });
+    chatOps.push({
+      updateOne: {
+        filter: { projectId },
+        update: { $push: { chats: chatMeta } },
+      },
+    });
 
-    // ---- Build ChatEntry docs from pairs
-    const entries = pairUserAssistant(msgs, projectId, chatId, now);
-    if (entries.length === 0) continue;
-
-    // Insert entries; tolerate reruns by ignoring duplicate key errors on (chatId, position)
-    try {
-      await ChatEntryModel.insertMany(entries, { ordered: false });
-      entriesInserted += entries.length;
-    } catch (err: any) {
-      // Ignore E11000 dup errors so reruns don’t bomb; count successful inserts
-      const msg = String(err?.message ?? "");
-      if (!/E11000 duplicate key error/.test(msg)) {
-        throw err;
-      }
-      // best-effort estimate: Atlas/Mongoose doesn't return insertedCount here; skip adjustment.
+    // Entries (user→assistant pairs) — upsert by (chatId, position)
+    const pairs = pairUserAssistant(msgs, projectId, chatId, now);
+    for (const { filter, doc } of pairs) {
+      entryOps.push({
+        updateOne: {
+          filter,
+          update: { $setOnInsert: doc },
+          upsert: true,
+        },
+      });
     }
   }
 
-  const projectsTouched = touchedProjectIds.size;
-  const projectsCreated = createdProjectIds.size;
-  const projectsUpdated = projectsTouched - projectsCreated;
+  const chatsUpserted = conversations.length;
 
+  // 4) Execute chat bulk updates
+  if (chatOps.length) {
+    const chatChunks = chunk(chatOps, 1000);
+    for (const ops of chatChunks) {
+      await ProjectModel.bulkWrite(ops, { ordered: true }); // keep order so pull precedes push per chat
+    }
+  }
+
+  // 5) Execute entry bulk upserts; count inserted precisely via upsertedCount
+  let entriesInserted = 0;
+  if (entryOps.length) {
+    const entryChunks = chunk(entryOps, 1000);
+    for (const ops of entryChunks) {
+      const res: any = await ChatEntryModel.bulkWrite(ops, { ordered: false });
+      entriesInserted += Number(res.upsertedCount || 0);
+    }
+  }
+
+  // 6) Summary
   console.log("\n—— Import Summary ——");
   console.log(`Projects created:  ${projectsCreated}`);
   console.log(`Projects updated:  ${projectsUpdated}`);
-  console.log(`Chats upserted:    ${chatsUpserted}`);   // per chat processed (likely ~#conversations)
+  console.log(`Chats upserted:    ${chatsUpserted}`);
   console.log(`Entries inserted:  ${entriesInserted}`);
 
   await mongoose.disconnect();

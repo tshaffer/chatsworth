@@ -34,7 +34,7 @@
       ],
       "args": [
         "backend/src/scripts/import-conversations-to-db.ts",
-        "/Users/tedshaffer/Documents/Projects/chatgpt-export-parser/data/chatGPTExport-08-21-25-0/conversations-with-projects.json"
+        "/Users/tedshaffer/Documents/Projects/chatgpt-export-parser/data/chatGPTExport-08-19-25-0/conversations-with-projects.json"
       ],
       "console": "integratedTerminal"
     },
