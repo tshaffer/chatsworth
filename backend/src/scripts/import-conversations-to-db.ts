@@ -175,10 +175,11 @@ async function main() {
 
   const now = new Date();
 
-  let projectsCreated = 0;
-  let projectsUpserted = 0;
   let chatsUpserted = 0;
   let entriesInserted = 0;
+
+  const touchedProjectIds = new Set<string>();
+  const createdProjectIds = new Set<string>();
 
   for (const conv of conversations) {
     const chatId = conv.id;
@@ -189,17 +190,26 @@ async function main() {
     const msgs = orderedMessages(conv.mapping);
     const messageCount = msgs.length;
 
-    // ---- Upsert project document
+    // ---- Upsert project (count once per unique project, detect creation reliably)
     const res = await ProjectModel.updateOne(
       { projectId },
       {
-        $set: { name: projectName, lastSyncedAt: now },     // set always (insert or update)
-        $setOnInsert: { projectId, chats: [] },             // only fields unique to insert
+        $set: { name: projectName, lastSyncedAt: now },
+        $setOnInsert: { projectId, chats: [] },
       },
       { upsert: true }
     );
-    if (res.upsertedCount) projectsCreated++;
-    else projectsUpserted++;
+
+    // mark we've seen this projectId at least once
+    touchedProjectIds.add(projectId);
+
+    // robust creation detection across drivers:
+    const wasCreated =
+      (res as any).upsertedId != null || // preferred: present when inserted
+      (typeof (res as any).upsertedCount === 'number' && (res as any).upsertedCount > 0) ||
+      ((res as any).matchedCount === 0); // fallback
+
+    if (wasCreated) createdProjectIds.add(projectId);
 
     // ---- Replace (pull/push) this chat subdoc to keep it single & fresh
     await ProjectModel.updateOne(
@@ -246,10 +256,14 @@ async function main() {
     }
   }
 
+  const projectsTouched = touchedProjectIds.size;
+  const projectsCreated = createdProjectIds.size;
+  const projectsUpdated = projectsTouched - projectsCreated;
+
   console.log("\n—— Import Summary ——");
   console.log(`Projects created:  ${projectsCreated}`);
-  console.log(`Projects upserted: ${projectsUpserted}`);
-  console.log(`Chats upserted:    ${chatsUpserted}`);
+  console.log(`Projects updated:  ${projectsUpdated}`);
+  console.log(`Chats upserted:    ${chatsUpserted}`);   // per chat processed (likely ~#conversations)
   console.log(`Entries inserted:  ${entriesInserted}`);
 
   await mongoose.disconnect();
