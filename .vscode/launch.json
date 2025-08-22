@@ -24,6 +24,21 @@
       "sourceMaps": true
     },
     {
+      "name": "Run importFromChatGPT (tsx)",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "tsx",
+      ],
+      "args": [
+        "backend/src/scripts/import-conversations-to-db.ts",
+        "/Users/tedshaffer/Documents/Projects/chatgpt-export-parser/data/chatGPTExport-08-21-25-0/conversations-with-projects.json"
+      ],
+      "console": "integratedTerminal"
+    },
+    {
       "name": "Run importChats (tsx)",
       "type": "node",
       "request": "launch",
