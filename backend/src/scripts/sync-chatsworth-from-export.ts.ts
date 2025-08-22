@@ -1,6 +1,16 @@
 /**
  * sync-chatsworth-from-export.ts
  *
+ *  *   From
+ *      /Users/tedshaffer/Documents/Projects/chatsworth/backend
+ *          npx ts-node src/scripts/import-conversations-to-db.ts /Users/tedshaffer/Documents/Projects/chatgpt-export-parser/data/chatGPTExport-08-21-25-0/conversations-with-projects.json
+ *          npx ts-node src/scripts/sync-chatsworth-from-export.ts \
+ *            --full /Users/tedshaffer/Documents/Projects/chatgpt-export-parser/data/chatGPTExport-08-21-25-0/conversations-with-projects.json \
+ *            --dry-run
+ * 
+ *            [--updated /abs/path/to/updated-<range>.json] \
+ *            [--dry-run]
+
  * Authoritative, UI-accurate sync from ChatGPT export → Chatsworth DB.
  * - Uses FULL export (conversations-with-projects.json) to mirror truth:
  *   - Upserts projects
@@ -12,7 +22,6 @@
  *   (deletions still come from the full export).
  *
  * Usage:
- *   MONGO_URI="mongodb://localhost:27017/chatsworth" \
  *   npx ts-node src/scripts/sync-chatsworth-from-export.ts \
  *     --full /abs/path/to/conversations-with-projects.json \
  *     [--updated /abs/path/to/updated-<range>.json] \
@@ -23,12 +32,14 @@
  *   (optional) MONGO_DB_NAME=...
  */
 
+import dotenv from 'dotenv';
+dotenv.config({
+  path: path.resolve(__dirname, '../../.env')
+});
+
 import fs from "fs/promises";
 import path from "path";
 import mongoose from "mongoose";
-import dotenv from "dotenv";
-
-dotenv.config();
 
 const MONGO_URI = process.env.MONGO_URI;
 if (!MONGO_URI) {
