@@ -10,26 +10,16 @@
  * 
  *            [--updated /abs/path/to/updated-<range>.json] \
  *            [--dry-run]
-
- * Authoritative, UI-accurate sync from ChatGPT export → Chatsworth DB.
- * - Uses FULL export (conversations-with-projects.json) to mirror truth:
+ * 
+ * Behavior:
+ * - Always CONNECTS to DB (even in --dry-run) to read current state.
+ * - In --dry-run, NO WRITES are executed; all changes are computed & reported.
+ * - Mirrors UI:
  *   - Upserts projects
- *   - Ensures each chat is in the correct project (move if needed)
+ *   - Ensures each chat lives in the correct project (moves if needed)
  *   - Upserts entries by (chatId, position) from the VISIBLE BRANCH ONLY
  *   - PRUNES any DB entries not present in latest export (per chat)
- *   - DELETES chats (and their entries) that no longer exist in the full export
- * - Optionally, pass an UPDATED flat file to limit which chats get reprocessed
- *   (deletions still come from the full export).
- *
- * Usage:
- *   npx ts-node src/scripts/sync-chatsworth-from-export.ts \
- *     --full /abs/path/to/conversations-with-projects.json \
- *     [--updated /abs/path/to/updated-<range>.json] \
- *     [--dry-run]
- *
- * Env:
- *   MONGO_URI=...
- *   (optional) MONGO_DB_NAME=...
+ *   - DELETES chats absent from the full export (plus their entries)
  */
 
 import dotenv from 'dotenv';
@@ -47,17 +37,16 @@ if (!MONGO_URI) {
   process.exit(1);
 }
 
-import { ProjectModel } from "../models/Project";     // adjust if paths differ
-import { ChatEntryModel } from "../models/ChatEntry"; // adjust if paths differ
+import { ProjectModel } from "../models/Project";     // adjust paths if needed
+import { ChatEntryModel } from "../models/ChatEntry"; // adjust paths if needed
 
-// ---------------- Types from export ----------------
+// ---------- Types from export ----------
 type ProjectTag = { id: string; name?: string } | null;
 
 type ExportMessage = {
   id?: string;
   author?: { role?: string | null } | null;
-  create_time?: number | null; // seconds (usually)
-  update_time?: number | null;
+  create_time?: number | null;
   content?: { parts?: string[] } | null;
 };
 
@@ -66,7 +55,7 @@ type ExportNode = {
   parent?: string | null;
   children?: string[] | null;
   message?: ExportMessage | null;
-  create_time?: number | string | null; // sometimes here too
+  create_time?: number | string | null;
 };
 
 type ExportConversation = {
@@ -75,11 +64,11 @@ type ExportConversation = {
   mapping: Record<string, ExportNode>;
   create_time?: number | string | null;
   update_time?: number | string | null;
-  current_node?: string | null; // visible branch tip
-  project: ProjectTag;          // injected by apply-project-map.ts
+  current_node?: string | null;
+  project: ProjectTag;
 };
 
-// ---------------- CLI args ----------------
+// ---------- CLI args ----------
 function parseArgs(argv: string[]) {
   const args = { full: "", updated: "", dryRun: false };
   for (let i = 0; i < argv.length; i++) {
@@ -89,17 +78,20 @@ function parseArgs(argv: string[]) {
     else if (a === "--dry-run") args.dryRun = true;
   }
   if (!args.full) {
-    console.error("Usage:\n  npx ts-node src/scripts/sync-chatsworth-from-export.ts --full /path/to/conversations-with-projects.json [--updated /path/to/updated-<range>.json] [--dry-run]");
+    console.error(
+      "Usage:\n  npx ts-node backend/src/scripts/sync-chatsworth-from-export.ts " +
+      "--full /path/to/conversations-with-projects.json [--updated /path/to/updated-<range>.json] [--dry-run]"
+    );
     process.exit(1);
   }
   return args;
 }
 
-// ---------------- Helpers ----------------
+// ---------- Helpers ----------
 function toDateOrNull(v: unknown): Date | null {
   if (v == null) return null;
   if (typeof v === "number") {
-    const secs = v > 1e12 ? Math.floor(v / 1000) : v; // normalize ms→s if needed
+    const secs = v > 1e12 ? Math.floor(v / 1000) : v;
     return new Date(secs * 1000);
   }
   const d = new Date(String(v));
@@ -111,14 +103,11 @@ function extractText(msg?: ExportMessage | null): string {
   return msg.content.parts.filter((p) => typeof p === "string").join("\n").trim();
 }
 
-/**
- * Returns timestamp in seconds (normalized). Prefers message.create_time, falls back to node.create_time.
- */
 function nodeTimestampSec(node?: ExportNode | null): number | undefined {
   if (!node) return undefined;
   const m = node.message;
   let raw: number | string | null | undefined = undefined;
-  if (m && typeof m.create_time === "number") raw = m.create_time;
+  if (typeof m?.create_time === "number") raw = m.create_time;
   else raw = node.create_time;
 
   if (raw == null) return undefined;
@@ -129,27 +118,20 @@ function nodeTimestampSec(node?: ExportNode | null): number | undefined {
 
 type FlatMsg = { t: number; role: "user" | "assistant"; text: string };
 
-/**
- * Extracts the UI-visible branch based on current_node by walking parents to root.
- * Only messages on that branch are considered, in chronological order.
- * Falls back to a "best effort" chronological flatten if current_node is missing.
- */
 function visibleBranchMessages(conv: ExportConversation): FlatMsg[] {
   const map = conv.mapping || {};
   const tip = conv.current_node || "";
 
   if (tip && map[tip]) {
-    // Build path from root to tip
     const pathIds: string[] = [];
     let cur: string | null | undefined = tip;
     const guard = new Set<string>();
     while (cur && map[cur]) {
-      if (guard.has(cur)) break; // cycle guard
+      if (guard.has(cur)) break;
       guard.add(cur);
       pathIds.push(cur);
       cur = map[cur].parent || null;
     }
-    // Reverse to chronological (root → tip)
     pathIds.reverse();
 
     const out: FlatMsg[] = [];
@@ -163,12 +145,11 @@ function visibleBranchMessages(conv: ExportConversation): FlatMsg[] {
       const t = nodeTimestampSec(node);
       out.push({ t: t ?? Number.POSITIVE_INFINITY, role, text });
     }
-    // Ensure ordering by t as secondary safety
     out.sort((a, b) => (a.t === b.t ? (a.role === b.role ? 0 : a.role === "user" ? -1 : 1) : a.t - b.t));
     return out;
   }
 
-  // Fallback: best-effort flatten over all nodes
+  // Fallback: flatten everything
   const out: FlatMsg[] = [];
   for (const node of Object.values(map)) {
     if (!node?.message) continue;
@@ -183,10 +164,6 @@ function visibleBranchMessages(conv: ExportConversation): FlatMsg[] {
   return out;
 }
 
-/**
- * Pair messages as user→assistant in sequence; returns upsert payloads.
- * Positions are 0..N-1 and represent *visible* pairs.
- */
 function pairVisibleUserAssistant(
   msgs: FlatMsg[],
   projectId: string,
@@ -216,15 +193,11 @@ function pairVisibleUserAssistant(
   for (let i = 0; i < msgs.length; i++) {
     const m = msgs[i];
     if (m.role !== "user") continue;
-
-    // find the next assistant after this user
     let j = i + 1;
     while (j < msgs.length && msgs[j].role !== "assistant") j++;
     if (j >= msgs.length) continue;
 
-    const u = m;
-    const a = msgs[j];
-
+    const u = m, a = msgs[j];
     const prompt = u.text.trim();
     const response = a.text.trim();
     if (!prompt || !response) continue;
@@ -244,16 +217,12 @@ function pairVisibleUserAssistant(
         exportedAt,
         source: "chatgpt-export",
       },
-      setOnInsert: {
-        chatId,
-        position: pos,
-        createdAt,
-      },
+      setOnInsert: { chatId, position: pos, createdAt },
       position: pos,
     });
 
     pos++;
-    i = j; // jump to assistant index
+    i = j;
   }
 
   return entries;
@@ -265,53 +234,58 @@ function chunk<T>(arr: T[], size = 1000): T[][] {
   return out;
 }
 
-// ---------------- Main ----------------
+// ---------- Main ----------
 async function main() {
   const { full, updated, dryRun } = parseArgs(process.argv.slice(2));
 
-  // Read full export (authoritative)
+  // Full export (truth)
   const fullPath = path.resolve(full);
-  const fullRaw = await fs.readFile(fullPath, "utf8");
-  const fullConvs = JSON.parse(fullRaw) as ExportConversation[];
-  if (!Array.isArray(fullConvs)) throw new Error("Full export must be an array of conversations");
+  const fullConvs: ExportConversation[] = JSON.parse(await fs.readFile(fullPath, "utf8"));
+  if (!Array.isArray(fullConvs)) throw new Error("Full export must be an array");
 
-  // Optional: read updated file to limit which chats to process
+  // Optional updated limiter
   const updatedSet = new Set<string>();
   if (updated) {
-    const updPath = path.resolve(updated);
-    const updRaw = await fs.readFile(updPath, "utf8");
-    const updConvs = JSON.parse(updRaw) as ExportConversation[];
-    if (!Array.isArray(updConvs)) throw new Error("--updated file must be an array");
-    for (const c of updConvs) updatedSet.add(c.id);
+    const up: ExportConversation[] = JSON.parse(await fs.readFile(path.resolve(updated), "utf8"));
+    if (!Array.isArray(up)) throw new Error("--updated must be an array");
+    for (const c of up) updatedSet.add(c.id);
   }
 
-  if (!dryRun) {
-    await mongoose.connect(MONGO_URI, { dbName: process.env.MONGO_DB_NAME || undefined });
-  }
-  console.log(`✅ Starting sync`);
+  await mongoose.connect(MONGO_URI, { dbName: process.env.MONGO_DB_NAME || undefined });
+  console.log(`✅ Connected (mode: ${dryRun ? "DRY RUN" : "WRITE"})`);
   console.log(`• Full export: ${fullPath} (conversations: ${fullConvs.length})`);
-  if (updated) console.log(`• Updated file: ${path.resolve(updated)} (limit to ${updatedSet.size} chats)`);
-  if (dryRun) console.log("ℹ️ DRY RUN: no writes will be made.");
+  if (updated) console.log(`• Updated file: ${updated} (limit: ${updatedSet.size} chat(s))`);
 
   const now = new Date();
 
-  // === 1) Upsert all projects present in the FULL export ===
-  const projectMap = new Map<string, string>(); // projectId -> name
+  // === 1) Projects upsert (simulate in dry-run using DB reads) ===
+  const projectMap = new Map<string, string>();
   for (const conv of fullConvs) {
     const pid = conv.project?.id ?? "manual_unassigned";
     const pname = conv.project?.name ?? "Unassigned";
     projectMap.set(pid, pname);
   }
+  const projectIds = Array.from(projectMap.keys());
+
+  // Which projects already exist?
+  const existingProjectIds = new Set<string>(
+    await ProjectModel.distinct("projectId", { projectId: { $in: projectIds } })
+  );
+  const wouldCreate = projectIds.filter((id) => !existingProjectIds.has(id));
+  const wouldUpdate = projectIds.filter((id) => existingProjectIds.has(id));
 
   let projectsCreated = 0;
   let projectsUpdated = 0;
 
-  if (!dryRun && projectMap.size) {
-    const ops = Array.from(projectMap.entries()).map(([projectId, name]) => ({
+  if (dryRun) {
+    projectsCreated = wouldCreate.length;
+    projectsUpdated = wouldUpdate.length;
+  } else {
+    const ops = projectIds.map((projectId) => ({
       updateOne: {
         filter: { projectId },
         update: {
-          $set: { name, lastSyncedAt: now },
+          $set: { name: projectMap.get(projectId), lastSyncedAt: now },
           $setOnInsert: { projectId, chats: [] },
         },
         upsert: true,
@@ -325,33 +299,30 @@ async function main() {
     }
   }
 
-  // === 2) Authoritative deletion of chats that no longer exist in the FULL export ===
-  // Get all chatIds in full export
+  // === 2) Authoritative deletion of chats missing from FULL export ===
   const fullChatIds = new Set<string>(fullConvs.map((c) => c.id));
+  const dbChatIds: string[] = await ProjectModel.distinct("chats.chatId");
+  const staleChatIds = dbChatIds.filter((id) => !fullChatIds.has(id));
   let chatsDeleted = 0;
   let entriesDeletedByChat = 0;
 
-  if (!dryRun) {
-    // Find chatIds currently in DB (via Project subdocs)
-    const dbChatIds: string[] = await ProjectModel.distinct("chats.chatId");
-    const staleChatIds = dbChatIds.filter((id) => !fullChatIds.has(id));
-    if (staleChatIds.length) {
-      // Delete entries
+  if (staleChatIds.length) {
+    if (dryRun) {
+      entriesDeletedByChat = await ChatEntryModel.countDocuments({ chatId: { $in: staleChatIds } });
+      chatsDeleted = staleChatIds.length;
+    } else {
       const delEntries = await ChatEntryModel.deleteMany({ chatId: { $in: staleChatIds } });
       entriesDeletedByChat += delEntries.deletedCount || 0;
 
-      // Pull chat subdocs
       await ProjectModel.updateMany(
         { "chats.chatId": { $in: staleChatIds } },
         { $pull: { chats: { chatId: { $in: staleChatIds } } } }
       );
-
-      chatsDeleted += staleChatIds.length;
-      console.log(`🧹 Deleted ${staleChatIds.length} chat(s) absent from full export (entries removed: ${entriesDeletedByChat}).`);
+      chatsDeleted = staleChatIds.length;
     }
   }
 
-  // === 3) Process conversations (either all from full export, or only those in --updated) ===
+  // === 3) Process conversations (either all, or limited by --updated) ===
   const toProcess = updated ? fullConvs.filter((c) => updatedSet.has(c.id)) : fullConvs;
 
   let chatsProcessed = 0;
@@ -366,18 +337,50 @@ async function main() {
     const projectName = conv.project?.name ?? "Unassigned";
     const title = conv.title || "(Untitled)";
 
-    // Messages from the visible branch only
+    // UI-visible messages → pair into entries
     const msgs = visibleBranchMessages(conv);
-    const messageCount = msgs.length;
     const pairs = pairVisibleUserAssistant(msgs, projectId, chatId, now);
+    const keepPositions = new Set(pairs.map((p) => p.position));
 
-    // Move chat if currently attached to a different project
-    if (!dryRun) {
-      const moveRes = await ProjectModel.updateMany(
-        { "chats.chatId": chatId, projectId: { $ne: projectId } },
-        { $pull: { chats: { chatId } } }
-      );
-      if (moveRes.modifiedCount) chatsMoved += moveRes.modifiedCount;
+    // Where does this chat currently live?
+    const currentHomes = await ProjectModel.find(
+      { "chats.chatId": chatId },
+      { projectId: 1 },
+    ).lean();
+
+    const livesElsewhere = currentHomes.some((d) => d.projectId !== projectId);
+    const homesElse = currentHomes.filter((d) => d.projectId !== projectId).map((d) => d.projectId);
+
+    // Existing entry positions in DB
+    const existingPositions = new Set<number>(
+      (await ChatEntryModel.find({ chatId }, { position: 1, _id: 0 }).lean()).map((d: any) => d.position)
+    );
+
+    // Plan counts
+    const toInsertPositions: number[] = [];
+    for (const p of keepPositions) if (!existingPositions.has(p)) toInsertPositions.push(p);
+
+    const toPrunePositions: number[] = [];
+    for (const p of existingPositions) if (!keepPositions.has(p)) toPrunePositions.push(p);
+
+    // Upsert count (attempts)
+    entriesUpserts += pairs.length;
+    entriesInserted += toInsertPositions.length;
+
+    // Move chat if necessary
+    if (livesElsewhere) {
+      if (dryRun) {
+        chatsMoved += homesElse.length; // approximate; each home will have a $pull
+      } else {
+        const res = await ProjectModel.updateMany(
+          { "chats.chatId": chatId, projectId: { $ne: projectId } },
+          { $pull: { chats: { chatId } } }
+        );
+        chatsMoved += res.modifiedCount || 0;
+
+        // Ensure ChatEntry.projectId reflects the new home
+        await ChatEntryModel.updateMany({ chatId, projectId: { $ne: projectId } }, { $set: { projectId } });
+      }
     }
 
     // Replace chat subdoc in target project
@@ -386,7 +389,7 @@ async function main() {
       title,
       projectId,
       projectName,
-      messageCount,
+      messageCount: msgs.length,
       metadata: {
         user: "",
         created: toDateOrNull(conv.create_time),
@@ -401,57 +404,51 @@ async function main() {
       await ProjectModel.updateOne({ projectId }, { $push: { chats: chatMeta } });
     }
 
-    // Ensure ChatEntry.projectId reflects target project (in case of move)
+    // Upsert entries
     if (!dryRun) {
-      await ChatEntryModel.updateMany({ chatId, projectId: { $ne: projectId } }, { $set: { projectId } });
-    }
-
-    // Upsert entries by (chatId, position)
-    if (pairs.length) {
       const ops = pairs.map(({ filter, set, setOnInsert }) => ({
         updateOne: { filter, update: { $set: set, $setOnInsert: setOnInsert }, upsert: true },
       }));
-      if (!dryRun) {
-        for (const batch of chunk(ops, 1000)) {
-          const res: any = await ChatEntryModel.bulkWrite(batch, { ordered: false });
-          entriesInserted += Number(res.upsertedCount || 0);
-          entriesUpserts += batch.length;
-        }
-      } else {
-        entriesUpserts += ops.length;
+      for (const batch of chunk(ops, 1000)) {
+        const res: any = await ChatEntryModel.bulkWrite(batch, { ordered: false });
+        entriesInserted += Number(res.upsertedCount || 0);
       }
     }
 
-    // PRUNE: delete any DB entries for this chat whose position is NOT present in the new visible export
-    if (!dryRun) {
-      const keepPositions = pairs.map((p) => p.position);
-      const delRes = await ChatEntryModel.deleteMany({
-        chatId,
-        position: { $nin: keepPositions },
-      });
-      entriesPruned += delRes.deletedCount || 0;
+    // Prune entries not in the export (by position)
+    if (toPrunePositions.length) {
+      if (dryRun) {
+        entriesPruned += toPrunePositions.length;
+      } else {
+        const delRes = await ChatEntryModel.deleteMany({ chatId, position: { $nin: Array.from(keepPositions) } });
+        entriesPruned += delRes.deletedCount || 0;
+      }
     }
 
     chatsProcessed++;
-    console.log(`✔︎ ${projectName} :: ${title} — pairs:${pairs.length}${msgs.length !== pairs.length * 2 ? " (unpaired msgs ignored)" : ""}`);
+    console.log(
+      `✔︎ ${projectName} :: ${title} — pairs:${pairs.length}` +
+      (livesElsewhere ? `, move from [${homesElse.join(", ")}]` : "") +
+      (toInsertPositions.length ? `, inserts:${toInsertPositions.length}` : "") +
+      (toPrunePositions.length ? `, prune:${toPrunePositions.length}` : "")
+    );
   }
 
-  // === 4) Summary ===
+  // === Summary ===
   console.log("\n—— Sync Summary ——");
-  console.log(`Projects created:    ${projectsCreated}`);
-  console.log(`Projects updated:    ${projectsUpdated}`);
-  console.log(`Chats deleted:       ${chatsDeleted}`);
-  console.log(`Entries deleted*:    ${entriesDeletedByChat}   (*due to chat deletions)`);
-  console.log(`Chats processed:     ${chatsProcessed}`);
-  console.log(`Chats moved:         ${chatsMoved}`);
-  console.log(`Entry upserts:       ${entriesUpserts}`);
-  console.log(`Entries inserted:    ${entriesInserted}`);
-  console.log(`Entries pruned:      ${entriesPruned}`);
+  console.log(`Mode:               ${dryRun ? "DRY RUN (no writes)" : "WRITE"}`);
+  console.log(`Projects created:   ${projectsCreated}`);
+  console.log(`Projects updated:   ${projectsUpdated}`);
+  console.log(`Chats deleted*:     ${chatsDeleted}  (*absent from full export)`);
+  console.log(`Entries deleted*:   ${entriesDeletedByChat}  (*due to chat deletions)`);
+  console.log(`Chats processed:    ${chatsProcessed}`);
+  console.log(`Chats moved:        ${chatsMoved}`);
+  console.log(`Entry upserts:      ${entriesUpserts}`);
+  console.log(`Entries inserted:   ${entriesInserted}`);
+  console.log(`Entries pruned:     ${entriesPruned}`);
 
-  if (!dryRun) {
-    await mongoose.disconnect();
-    console.log("✅ Done.");
-  }
+  await mongoose.disconnect();
+  console.log("✅ Finished.");
 }
 
 main().catch(async (err) => {
