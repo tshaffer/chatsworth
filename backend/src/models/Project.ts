@@ -2,26 +2,32 @@
 import mongoose from 'mongoose';
 
 const ChatSchema = new mongoose.Schema({
-  id: String,
-  title: String,
+  chatId: { type: String, required: true },     // rename `id` → `chatId` for clarity
+  title: { type: String, required: true },
+  projectId: { type: String, required: true },  // mirror parent for easier querying
+  projectName: { type: String, required: true },// from conv.project.name
+  messageCount: { type: Number, default: 0 },
+
+  // Export metadata (use Date, not string)
   metadata: {
-    title: String,
-    user: String,
-    created: String,
-    updated: String,
-    exported: String,
+    user: String,               // optional, if present in export
+    created: Date,              // from create_time
+    updated: Date,              // from update_time
+    exportedAt: Date,           // when we ran the sync
+    source: { type: String, default: 'chatgpt-export' }, // provenance
   },
 }, { _id: false });
 
 const ProjectSchema = new mongoose.Schema({
-  id: String,
-  name: String,
-  chats: [ChatSchema],
+  projectId: { type: String, required: true, unique: true }, // maps to conv.project.id (or 'none')
+  name: { type: String, required: true },                    // conv.project.name or "No Project"
+  chats: { type: [ChatSchema], default: [] },
+  lastSyncedAt: Date,
 });
 
-// Full-text index (if you still want text search on titles)
-ProjectSchema.index({
-  'chats.title': 'text',
-});
+// helpful indexes
+ProjectSchema.index({ 'chats.chatId': 1 });
+ProjectSchema.index({ name: 1 });
+ProjectSchema.index({ 'chats.title': 'text' });
 
 export const ProjectModel = mongoose.model('Project', ProjectSchema);
