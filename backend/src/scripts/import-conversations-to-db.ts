@@ -193,8 +193,8 @@ async function main() {
     const res = await ProjectModel.updateOne(
       { projectId },
       {
-        $setOnInsert: { projectId, name: projectName, chats: [] },
-        $set: { name: projectName, lastSyncedAt: now },
+        $set: { name: projectName, lastSyncedAt: now },     // set always (insert or update)
+        $setOnInsert: { projectId, chats: [] },             // only fields unique to insert
       },
       { upsert: true }
     );
@@ -258,6 +258,6 @@ async function main() {
 
 main().catch(async (err) => {
   console.error("❌ Import failed:", err);
-  try { await mongoose.disconnect(); } catch {}
+  try { await mongoose.disconnect(); } catch { }
   process.exit(1);
 });
