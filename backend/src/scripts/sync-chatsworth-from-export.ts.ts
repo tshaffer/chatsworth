@@ -1,24 +1,27 @@
 /**
  * sync-chatsworth-from-export.ts
  *
- *  *   From
- *      /Users/tedshaffer/Documents/Projects/chatsworth/backend
- *          npx ts-node src/scripts/import-conversations-to-db.ts /Users/tedshaffer/Documents/Projects/chatgpt-export-parser/data/chatGPTExport-08-21-25-0/conversations-with-projects.json
- *          npx ts-node src/scripts/sync-chatsworth-from-export.ts \
- *            --full /Users/tedshaffer/Documents/Projects/chatgpt-export-parser/data/chatGPTExport-08-21-25-0/conversations-with-projects.json \
- *            --dry-run
+ * Authoritative, UI-accurate sync from ChatGPT export → Chatsworth DB.
+ *
+ *    From
+ *     /Users/tedshaffer/Documents/Projects/chatsworth/backend
+ *     npx ts-node src/scripts/sync-chatsworth-from-export.ts \
+ *       --full /Users/tedshaffer/Documents/Projects/chatgpt-export-parser/data/chatGPTExport-08-21-25-0/conversations-with-projects.json \
+ *       --dry-run
  * 
- *            [--updated /abs/path/to/updated-<range>.json] \
- *            [--dry-run]
+ *       [--updated /abs/path/to/updated-<range>.json] \
+ *       [--dry-run]
  * 
  * Behavior:
  * - Always CONNECTS to DB (even in --dry-run) to read current state.
- * - In --dry-run, NO WRITES are executed; all changes are computed & reported.
+ * - In --dry-run, NO WRITES are executed; changes are computed & reported precisely.
  * - Mirrors UI:
  *   - Upserts projects
  *   - Ensures each chat lives in the correct project (moves if needed)
- *   - Upserts entries by (chatId, position) from the VISIBLE BRANCH ONLY
- *   - PRUNES any DB entries not present in latest export (per chat)
+ *   - Pairs only the UI-visible branch (via current_node)
+ *   - Upserts entries by identity (hash of prompt+response)
+ *   - Repositions kept entries safely (two-phase update)
+ *   - PRUNES DB entries not present in latest export (by identity)
  *   - DELETES chats absent from the full export (plus their entries)
  */
 
@@ -29,6 +32,7 @@ dotenv.config({
 
 import fs from "fs/promises";
 import path from "path";
+import crypto from "crypto";
 import mongoose from "mongoose";
 
 const MONGO_URI = process.env.MONGO_URI;
@@ -37,8 +41,9 @@ if (!MONGO_URI) {
   process.exit(1);
 }
 
-import { ProjectModel } from "../models/Project";     // adjust paths if needed
-import { ChatEntryModel } from "../models/ChatEntry"; // adjust paths if needed
+// Adjust import paths if your model files live elsewhere
+import { ProjectModel } from "../models/Project";
+import { ChatEntryModel } from "../models/ChatEntry";
 
 // ---------- Types from export ----------
 type ProjectTag = { id: string; name?: string } | null;
@@ -46,7 +51,7 @@ type ProjectTag = { id: string; name?: string } | null;
 type ExportMessage = {
   id?: string;
   author?: { role?: string | null } | null;
-  create_time?: number | null;
+  create_time?: number | null; // seconds (usually)
   content?: { parts?: string[] } | null;
 };
 
@@ -55,7 +60,7 @@ type ExportNode = {
   parent?: string | null;
   children?: string[] | null;
   message?: ExportMessage | null;
-  create_time?: number | string | null;
+  create_time?: number | string | null; // sometimes here too
 };
 
 type ExportConversation = {
@@ -64,8 +69,8 @@ type ExportConversation = {
   mapping: Record<string, ExportNode>;
   create_time?: number | string | null;
   update_time?: number | string | null;
-  current_node?: string | null;
-  project: ProjectTag;
+  current_node?: string | null; // visible branch tip
+  project: ProjectTag;          // injected by apply-project-map.ts
 };
 
 // ---------- CLI args ----------
@@ -91,7 +96,7 @@ function parseArgs(argv: string[]) {
 function toDateOrNull(v: unknown): Date | null {
   if (v == null) return null;
   if (typeof v === "number") {
-    const secs = v > 1e12 ? Math.floor(v / 1000) : v;
+    const secs = v > 1e12 ? Math.floor(v / 1000) : v; // normalize ms→s if needed
     return new Date(secs * 1000);
   }
   const d = new Date(String(v));
@@ -103,17 +108,12 @@ function extractText(msg?: ExportMessage | null): string {
   return msg.content.parts.filter((p) => typeof p === "string").join("\n").trim();
 }
 
-function formatPromptLine(s?: string, max = 200): string {
-  if (!s) return "(empty prompt)";
-  const one = s.replace(/\s+/g, " ").trim();
-  return one.length > max ? one.slice(0, max) + "…" : one;
-}
-
+/** Prefer message.create_time; fall back to node.create_time; normalize to seconds */
 function nodeTimestampSec(node?: ExportNode | null): number | undefined {
   if (!node) return undefined;
   const m = node.message;
   let raw: number | string | null | undefined = undefined;
-  if (typeof m?.create_time === "number") raw = m.create_time;
+  if (m && typeof m.create_time === "number") raw = m.create_time;
   else raw = node.create_time;
 
   if (raw == null) return undefined;
@@ -124,6 +124,7 @@ function nodeTimestampSec(node?: ExportNode | null): number | undefined {
 
 type FlatMsg = { t: number; role: "user" | "assistant"; text: string };
 
+/** Walk current_node → root to get the UI-visible branch; fallback: flatten all */
 function visibleBranchMessages(conv: ExportConversation): FlatMsg[] {
   const map = conv.mapping || {};
   const tip = conv.current_node || "";
@@ -133,7 +134,7 @@ function visibleBranchMessages(conv: ExportConversation): FlatMsg[] {
     let cur: string | null | undefined = tip;
     const guard = new Set<string>();
     while (cur && map[cur]) {
-      if (guard.has(cur)) break;
+      if (guard.has(cur)) break; // cycle guard
       guard.add(cur);
       pathIds.push(cur);
       cur = map[cur].parent || null;
@@ -155,7 +156,7 @@ function visibleBranchMessages(conv: ExportConversation): FlatMsg[] {
     return out;
   }
 
-  // Fallback: flatten everything
+  // Fallback: best-effort flatten over all nodes
   const out: FlatMsg[] = [];
   for (const node of Object.values(map)) {
     if (!node?.message) continue;
@@ -170,12 +171,17 @@ function visibleBranchMessages(conv: ExportConversation): FlatMsg[] {
   return out;
 }
 
-/*
-    if (i > 710) {
-      console.log('foo');
-    }
-*/
+/** Make a stable identity for a pair (prompt+response) regardless of position */
+const pairHash = (prompt: string, response: string) =>
+  crypto.createHash("sha1").update(`${prompt}\n␟\n${response}`).digest("hex");
 
+function formatPromptLine(s?: string, max = 200): string {
+  if (!s) return "(empty prompt)";
+  const one = s.replace(/\s+/g, " ").trim();
+  return one.length > max ? one.slice(0, max) + "…" : one;
+}
+
+/** Queue-based pairing: pair each assistant with the earliest unmatched user */
 function pairVisibleUserAssistant(
   msgs: FlatMsg[],
   projectId: string,
@@ -204,13 +210,7 @@ function pairVisibleUserAssistant(
   const userQueue: FlatMsg[] = [];
   let pos = 0;
 
-  let msgIndex = 0;
-
   for (const m of msgs) {
-    msgIndex++;
-    if (msgIndex > 710) {
-      console.log('foo');
-    }
     if (m.role === "user") {
       userQueue.push(m);
       continue;
@@ -238,7 +238,11 @@ function pairVisibleUserAssistant(
           exportedAt,
           source: "chatgpt-export",
         },
-        setOnInsert: { chatId, position: pos, createdAt },
+        setOnInsert: {
+          chatId,
+          position: pos,
+          createdAt,
+        },
         position: pos,
       });
 
@@ -307,7 +311,7 @@ async function main() {
         filter: { projectId },
         update: {
           $set: { name: projectMap.get(projectId), lastSyncedAt: now },
-          $setOnInsert: { projectId, chats: [] as any[] },
+          $setOnInsert: { projectId, chats: [] },
         },
         upsert: true,
       },
@@ -354,9 +358,6 @@ async function main() {
 
   for (const conv of toProcess) {
     const chatId = conv.id;
-    if (chatId === 'effc83d0-0c73-48c1-842a-2b6daadb9378') {
-      debugger;
-    }
     const projectId = conv.project?.id ?? "manual_unassigned";
     const projectName = conv.project?.name ?? "Unassigned";
     const title = conv.title || "(Untitled)";
@@ -364,7 +365,12 @@ async function main() {
     // UI-visible messages → pair into entries
     const msgs = visibleBranchMessages(conv);
     const pairs = pairVisibleUserAssistant(msgs, projectId, chatId, now);
-    const keepPositions = new Set(pairs.map((p) => p.position));
+
+    // Build identity hash for each new pair
+    const pairsWithHash = pairs.map(p => ({
+      ...p,
+      hash: pairHash(p.set.originalPrompt || "", p.set.response || "")
+    }));
 
     // Where does this chat currently live?
     const currentHomes = await ProjectModel.find(
@@ -372,31 +378,74 @@ async function main() {
       { projectId: 1 },
     ).lean();
 
-    const livesElsewhere = currentHomes.some((d) => d.projectId !== projectId);
-    const homesElse = currentHomes.filter((d) => d.projectId !== projectId).map((d) => d.projectId);
+    const livesElsewhere = currentHomes.some((d: any) => d.projectId !== projectId);
+    const homesElse = currentHomes.filter((d: any) => d.projectId !== projectId).map((d: any) => d.projectId);
 
-    // Existing entry positions in DB
-    const existingPositions = new Set<number>(
-      (await ChatEntryModel.find({ chatId }, { position: 1, _id: 0 }).lean())
-        .map((d: any) => Number(d.position))
-        .filter((n: number) => Number.isFinite(n) && n >= 0)
-    );
+    // Load existing DB entries for this chat to diff by hash
+    type ExistingDoc = { _id: any; position: number; originalPrompt?: string; response?: string };
+    const existingDocs = await ChatEntryModel.find(
+      { chatId },
+      { _id: 1, position: 1, originalPrompt: 1, response: 1 }
+    ).lean() as ExistingDoc[];
 
-    // Plan counts
-    const toInsertPositions: number[] = [];
-    for (const p of keepPositions) if (!existingPositions.has(p)) toInsertPositions.push(p);
+    const existingByHash = new Map<string, ExistingDoc>();
+    for (const d of existingDocs) {
+      const h = pairHash(d.originalPrompt || "", d.response || "");
+      // If duplicates exist (shouldn't), keep the lowest position to be deterministic
+      const prev = existingByHash.get(h);
+      if (!prev || d.position < prev.position) existingByHash.set(h, d);
+    }
 
-    const toPrunePositions: number[] = [];
-    for (const p of existingPositions) if (!keepPositions.has(p)) toPrunePositions.push(p);
+    const keepHashes = new Set(pairsWithHash.map(p => p.hash));
 
-    // Upsert count (attempts)
-    entriesUpserts += pairs.length;
-    entriesInserted += toInsertPositions.length;
+    // PRUNE: anything in DB whose hash isn’t in the new export
+    const pruneDocs = existingDocs.filter(d => {
+      const h = pairHash(d.originalPrompt || "", d.response || "");
+      return !keepHashes.has(h);
+    });
+
+    // Count inserts (hash not seen in DB)
+    const insertDocs: any[] = [];
+    for (let i = 0; i < pairsWithHash.length; i++) {
+      const p = pairsWithHash[i];
+      if (!existingByHash.has(p.hash)) {
+        insertDocs.push({
+          projectId,
+          chatId,
+          position: i,
+          originalPrompt: p.set.originalPrompt,
+          promptSummary: p.set.promptSummary,
+          response: p.set.response,
+          createdAt: p.setOnInsert.createdAt,
+          updatedAt: p.set.updatedAt,
+          exportedAt: now,
+          source: "chatgpt-export",
+        });
+      }
+    }
+
+    // Log headline per chat
+    const headlineParts = [`pairs:${pairsWithHash.length}`];
+    if (pruneDocs.length) headlineParts.push(`prune:${pruneDocs.length}`);
+    if (insertDocs.length) headlineParts.push(`inserts:${insertDocs.length}`);
+    if (livesElsewhere) headlineParts.push(`move from [${homesElse.join(", ")}]`);
+    if (pruneDocs.length || insertDocs.length || livesElsewhere) {
+      console.log(`✔︎ ${projectName} :: ${title} — ${headlineParts.join(", ")}`);
+    }
+
+    // Print each pruned prompt
+    if (pruneDocs.length) {
+      console.log("    pruned entries:");
+      const sorted = [...pruneDocs].sort((a, b) => a.position - b.position);
+      for (const d of sorted) {
+        console.log(`    - [pos ${d.position}] ${formatPromptLine(d.originalPrompt)}`);
+      }
+    }
 
     // Move chat if necessary
     if (livesElsewhere) {
       if (dryRun) {
-        chatsMoved += homesElse.length; // approximate; each home will have a $pull
+        chatsMoved += homesElse.length; // approx (each home gets a $pull)
       } else {
         const res = await ProjectModel.updateMany(
           { "chats.chatId": chatId, projectId: { $ne: projectId } },
@@ -430,48 +479,69 @@ async function main() {
       await ProjectModel.updateOne({ projectId }, { $push: { chats: chatMeta } });
     }
 
-    // Upsert entries
+    // Execute PRUNE (by identity) + UPDATE/REPOSITION + INSERT
     if (!dryRun) {
-      const ops = pairs.map(({ filter, set, setOnInsert }) => ({
-        updateOne: { filter, update: { $set: set, $setOnInsert: setOnInsert }, upsert: true },
-      }));
-      for (const batch of chunk(ops, 1000)) {
-        const res: any = await ChatEntryModel.bulkWrite(batch, { ordered: false });
-        entriesInserted += Number(res.upsertedCount || 0);
-      }
-    }
-    // Log pruned items (and delete exactly those)
-    if (toPrunePositions.length) {
-      const pruneDocs = await ChatEntryModel.find(
-        { chatId, position: { $in: toPrunePositions } },
-        { position: 1, originalPrompt: 1, _id: 0 }
-      ).sort({ position: 1 }).lean();
-
-      console.log("    pruned entries:");
-      for (const d of pruneDocs) {
-        const prompt = (d as any).originalPrompt ?? "";
-        const oneLine = prompt.replace(/\s+/g, " ").trim();
-        const shown = oneLine.length > 200 ? oneLine.slice(0, 200) + "…" : oneLine;
-        console.log(`    - [pos ${d.position}] ${shown || "(empty prompt)"}`);
-      }
-
-      if (!dryRun) {
-        const delRes = await ChatEntryModel.deleteMany({ chatId, position: { $in: toPrunePositions } });
+      // 1) Delete pruned docs
+      if (pruneDocs.length) {
+        const delRes = await ChatEntryModel.deleteMany({ _id: { $in: pruneDocs.map(d => d._id) } });
         entriesPruned += delRes.deletedCount || 0;
-      } else {
-        entriesPruned += pruneDocs.length;
       }
+
+      // 2) Two-phase reposition/update for kept entries
+      //    Phase A: set temp negative positions and update metadata
+      const phaseAOps: any[] = [];
+      //    Phase B: set final positions
+      const phaseBOps: any[] = [];
+
+      for (let i = 0; i < pairsWithHash.length; i++) {
+        const p = pairsWithHash[i];
+        const existing = existingByHash.get(p.hash);
+        if (!existing) continue; // handled in inserts
+
+        phaseAOps.push({
+          updateOne: {
+            filter: { _id: existing._id },
+            update: {
+              $set: {
+                projectId,
+                position: -1 - i, // temporary to avoid unique conflicts
+                originalPrompt: p.set.originalPrompt,
+                promptSummary: p.set.promptSummary,
+                response: p.set.response,
+                updatedAt: p.set.updatedAt,
+                exportedAt: now,
+                source: "chatgpt-export",
+              },
+            },
+          },
+        });
+
+        phaseBOps.push({
+          updateOne: {
+            filter: { _id: existing._id },
+            update: { $set: { position: i } },
+          },
+        });
+      }
+
+      if (phaseAOps.length) await ChatEntryModel.bulkWrite(phaseAOps, { ordered: false });
+      if (insertDocs.length) {
+        const ins = await ChatEntryModel.insertMany(insertDocs, { ordered: false });
+        debugger;
+        entriesInserted += ins.length;
+      }
+      if (phaseBOps.length) await ChatEntryModel.bulkWrite(phaseBOps, { ordered: false });
+
+      // Track upserts count for summary (approx = kept+inserted)
+      entriesUpserts += pairsWithHash.length;
+    } else {
+      // DRY-RUN accounting
+      entriesPruned += pruneDocs.length;
+      entriesInserted += insertDocs.length;
+      entriesUpserts += pairsWithHash.length;
     }
 
     chatsProcessed++;
-    if (livesElsewhere || toInsertPositions.length || toPrunePositions.length) {
-      console.log(
-        `✔︎ ${projectName} ${chatId} :: ${title} — pairs:${pairs.length}` +
-        (livesElsewhere ? `, move from [${homesElse.join(", ")}]` : "") +
-        (toInsertPositions.length ? `, inserts:${toInsertPositions.length}` : "") +
-        (toPrunePositions.length ? `, prune:${toPrunePositions.length}` : "")
-      );
-    }
   }
 
   // === Summary ===
