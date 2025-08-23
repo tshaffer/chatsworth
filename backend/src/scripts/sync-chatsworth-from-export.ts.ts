@@ -103,6 +103,12 @@ function extractText(msg?: ExportMessage | null): string {
   return msg.content.parts.filter((p) => typeof p === "string").join("\n").trim();
 }
 
+function formatPromptLine(s?: string, max = 200): string {
+  if (!s) return "(empty prompt)";
+  const one = s.replace(/\s+/g, " ").trim();
+  return one.length > max ? one.slice(0, max) + "…" : one;
+}
+
 function nodeTimestampSec(node?: ExportNode | null): number | undefined {
   if (!node) return undefined;
   const m = node.message;
@@ -286,7 +292,7 @@ async function main() {
         filter: { projectId },
         update: {
           $set: { name: projectMap.get(projectId), lastSyncedAt: now },
-          $setOnInsert: { projectId, chats: [] },
+          $setOnInsert: { projectId, chats: [] as any[] },
         },
         upsert: true,
       },
@@ -415,13 +421,31 @@ async function main() {
       }
     }
 
-    // Prune entries not in the export (by position)
+    // --- Prune entries not in the export (by position) & print their prompts
     if (toPrunePositions.length) {
-      if (dryRun) {
-        entriesPruned += toPrunePositions.length;
-      } else {
-        const delRes = await ChatEntryModel.deleteMany({ chatId, position: { $nin: Array.from(keepPositions) } });
+      const pruneDocs = await ChatEntryModel.find(
+        { chatId, position: { $in: toPrunePositions } },
+        { position: 1, originalPrompt: 1, _id: 0 }
+      )
+        .sort({ position: 1 })
+        .lean();
+
+      console.log("    pruned entries:");
+      for (const d of pruneDocs) {
+        const prompt = (d as any).originalPrompt ?? "";
+        const oneLine = prompt.replace(/\s+/g, " ").trim();
+        const shown = oneLine.length > 200 ? oneLine.slice(0, 200) + "…" : oneLine;
+        console.log(`    - [pos ${d.position}] ${shown || "(empty prompt)"}`);
+      }
+
+      if (!dryRun) {
+        const delRes = await ChatEntryModel.deleteMany({
+          chatId,
+          position: { $in: toPrunePositions }, // delete exactly what we printed
+        });
         entriesPruned += delRes.deletedCount || 0;
+      } else {
+        entriesPruned += pruneDocs.length;
       }
     }
 
