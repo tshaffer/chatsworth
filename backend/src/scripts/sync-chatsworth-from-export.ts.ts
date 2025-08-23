@@ -170,6 +170,12 @@ function visibleBranchMessages(conv: ExportConversation): FlatMsg[] {
   return out;
 }
 
+/*
+    if (i > 710) {
+      console.log('foo');
+    }
+*/
+
 function pairVisibleUserAssistant(
   msgs: FlatMsg[],
   projectId: string,
@@ -339,6 +345,9 @@ async function main() {
 
   for (const conv of toProcess) {
     const chatId = conv.id;
+    if (chatId === 'effc83d0-0c73-48c1-842a-2b6daadb9378') {
+      debugger;
+    }
     const projectId = conv.project?.id ?? "manual_unassigned";
     const projectName = conv.project?.name ?? "Unassigned";
     const title = conv.title || "(Untitled)";
@@ -450,12 +459,14 @@ async function main() {
     }
 
     chatsProcessed++;
-    console.log(
-      `✔︎ ${projectName} :: ${title} — pairs:${pairs.length}` +
-      (livesElsewhere ? `, move from [${homesElse.join(", ")}]` : "") +
-      (toInsertPositions.length ? `, inserts:${toInsertPositions.length}` : "") +
-      (toPrunePositions.length ? `, prune:${toPrunePositions.length}` : "")
-    );
+    if (livesElsewhere || toInsertPositions.length || toPrunePositions.length) {
+      console.log(
+        `✔︎ ${projectName} ${chatId} :: ${title} — pairs:${pairs.length}` +
+        (livesElsewhere ? `, move from [${homesElse.join(", ")}]` : "") +
+        (toInsertPositions.length ? `, inserts:${toInsertPositions.length}` : "") +
+        (toPrunePositions.length ? `, prune:${toPrunePositions.length}` : "")
+      );
+    }
   }
 
   // === Summary ===
