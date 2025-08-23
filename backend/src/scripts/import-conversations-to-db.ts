@@ -112,48 +112,49 @@ function pairUserAssistant(
       exportedAt: Date;
       source: string;
     };
+    position: number;
   }> = [];
 
+  // FIFO queue of unmatched user messages
+  const userQueue: FlatMsg[] = [];
   let pos = 0;
-  for (let i = 0; i < msgs.length; i++) {
-    const m = msgs[i];
-    if (m.role !== "user") continue;
 
-    // find the next assistant reply
-    let j = i + 1;
-    while (j < msgs.length && msgs[j].role !== "assistant") j++;
-    if (j >= msgs.length) continue;
+  for (const m of msgs) {
+    if (m.role === "user") {
+      userQueue.push(m);
+      continue;
+    }
+    if (m.role === "assistant") {
+      const u = userQueue.shift(); // pair with earliest unmatched user
+      if (!u) continue;
 
-    const u = m;
-    const a = msgs[j];
+      const prompt = (u.text || "").trim();
+      const response = (m.text || "").trim();
+      if (!prompt || !response) continue;
 
-    const prompt = u.text.trim();
-    const response = a.text.trim();
-    if (!prompt || !response) continue;
+      const createdAt = Number.isFinite(u.t) ? new Date(u.t * 1000) : undefined;
+      const updatedAt = Number.isFinite(m.t) ? new Date(m.t * 1000) : createdAt;
+      const promptSummary = prompt.split(/\n+/)[0].slice(0, 200);
 
-    const createdAt = isFinite(u.t) ? new Date(u.t * 1000) : undefined;
-    const updatedAt = isFinite(a.t) ? new Date(a.t * 1000) : createdAt;
-
-    const summary = prompt.split(/\n+/)[0].slice(0, 200);
-
-    entries.push({
-      filter: { chatId, position: pos },
-      doc: {
-        projectId,
-        chatId,
+      entries.push({
+        filter: { chatId, position: pos },
+        doc: {
+          projectId,
+          chatId,
+          position: pos,
+          originalPrompt: prompt,
+          promptSummary,
+          response,
+          createdAt,
+          updatedAt,
+          exportedAt,
+          source: "chatgpt-export",
+        },
         position: pos,
-        originalPrompt: prompt,
-        promptSummary: summary,
-        response,
-        createdAt,
-        updatedAt,
-        exportedAt,
-        source: "chatgpt-export",
-      },
-    });
+      });
 
-    pos++;
-    i = j; // advance past the assistant
+      pos++;
+    }
   }
 
   return entries;
