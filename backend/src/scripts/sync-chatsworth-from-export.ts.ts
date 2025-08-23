@@ -201,40 +201,49 @@ function pairVisibleUserAssistant(
     position: number;
   }> = [];
 
+  const userQueue: FlatMsg[] = [];
   let pos = 0;
-  for (let i = 0; i < msgs.length; i++) {
-    const m = msgs[i];
-    if (m.role !== "user") continue;
-    let j = i + 1;
-    while (j < msgs.length && msgs[j].role !== "assistant") j++;
-    if (j >= msgs.length) continue;
 
-    const u = m, a = msgs[j];
-    const prompt = u.text.trim();
-    const response = a.text.trim();
-    if (!prompt || !response) continue;
+  let msgIndex = 0;
 
-    const createdAt = isFinite(u.t) ? new Date(u.t * 1000) : undefined;
-    const updatedAt = isFinite(a.t) ? new Date(a.t * 1000) : createdAt;
-    const summary = prompt.split(/\n+/)[0].slice(0, 200);
+  for (const m of msgs) {
+    msgIndex++;
+    if (msgIndex > 710) {
+      console.log('foo');
+    }
+    if (m.role === "user") {
+      userQueue.push(m);
+      continue;
+    }
+    if (m.role === "assistant") {
+      const u = userQueue.shift();
+      if (!u) continue;
 
-    entries.push({
-      filter: { chatId, position: pos },
-      set: {
-        projectId,
-        originalPrompt: prompt,
-        promptSummary: summary,
-        response,
-        updatedAt,
-        exportedAt,
-        source: "chatgpt-export",
-      },
-      setOnInsert: { chatId, position: pos, createdAt },
-      position: pos,
-    });
+      const prompt = (u.text || "").trim();
+      const response = (m.text || "").trim();
+      if (!prompt || !response) continue;
 
-    pos++;
-    i = j;
+      const createdAt = Number.isFinite(u.t) ? new Date(u.t * 1000) : undefined;
+      const updatedAt = Number.isFinite(m.t) ? new Date(m.t * 1000) : createdAt;
+      const promptSummary = prompt.split(/\n+/)[0].slice(0, 200);
+
+      entries.push({
+        filter: { chatId, position: pos },
+        set: {
+          projectId,
+          originalPrompt: prompt,
+          promptSummary,
+          response,
+          updatedAt,
+          exportedAt,
+          source: "chatgpt-export",
+        },
+        setOnInsert: { chatId, position: pos, createdAt },
+        position: pos,
+      });
+
+      pos++;
+    }
   }
 
   return entries;
@@ -368,7 +377,9 @@ async function main() {
 
     // Existing entry positions in DB
     const existingPositions = new Set<number>(
-      (await ChatEntryModel.find({ chatId }, { position: 1, _id: 0 }).lean()).map((d: any) => d.position)
+      (await ChatEntryModel.find({ chatId }, { position: 1, _id: 0 }).lean())
+        .map((d: any) => Number(d.position))
+        .filter((n: number) => Number.isFinite(n) && n >= 0)
     );
 
     // Plan counts
@@ -429,15 +440,12 @@ async function main() {
         entriesInserted += Number(res.upsertedCount || 0);
       }
     }
-
-    // --- Prune entries not in the export (by position) & print their prompts
+    // Log pruned items (and delete exactly those)
     if (toPrunePositions.length) {
       const pruneDocs = await ChatEntryModel.find(
         { chatId, position: { $in: toPrunePositions } },
         { position: 1, originalPrompt: 1, _id: 0 }
-      )
-        .sort({ position: 1 })
-        .lean();
+      ).sort({ position: 1 }).lean();
 
       console.log("    pruned entries:");
       for (const d of pruneDocs) {
@@ -448,10 +456,7 @@ async function main() {
       }
 
       if (!dryRun) {
-        const delRes = await ChatEntryModel.deleteMany({
-          chatId,
-          position: { $in: toPrunePositions }, // delete exactly what we printed
-        });
+        const delRes = await ChatEntryModel.deleteMany({ chatId, position: { $in: toPrunePositions } });
         entriesPruned += delRes.deletedCount || 0;
       } else {
         entriesPruned += pruneDocs.length;
