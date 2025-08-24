@@ -1,6 +1,5 @@
 /* eslint-disable no-console */
-import { ProjectModel } from '../models/Project';
-import { ChatModel } from '../models/Chat';
+import { ChatModel, ProjectModel } from '../models/Project';
 import { ChatEntryModel } from '../models/ChatEntry';
 
 export type ExportPayload = {

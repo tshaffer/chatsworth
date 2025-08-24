@@ -6,7 +6,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import mongoose from 'mongoose';
 import { connectDB } from '../config/db';
-import { runBidirectionalSync, ExportPayload } from './syncCore';
+import { ExportPayload, runBidirectionalSync } from './syncCore';
 
 // ──────────────────────────────────────────────────────────────
 // Types that match your “conversations-with-projects.json”
