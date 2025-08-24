@@ -44,14 +44,16 @@ interface Conversation {
   project?: ConvProject | null;
 }
 
-/** CLI arg */
-function argFile(): string {
-  const p = process.argv[2];
-  if (!p) {
+/** CLI args */
+function parseArgs(): { file: string; dryRun: boolean } {
+  const args = process.argv.slice(2);
+  const dryRun = args.includes('--dryRun');
+  const file = args.find(a => !a.startsWith('--'));
+  if (!file) {
     console.error('ERROR: Provide path to conversations-with-projects.json');
     process.exit(1);
   }
-  return path.resolve(p);
+  return { file: path.resolve(file), dryRun };
 }
 
 /** seconds/ms → ISO string (or undefined) */
@@ -184,7 +186,7 @@ function flatten(convs: Conversation[]): ExportPayload {
 
 /** MAIN */
 (async () => {
-  const file = argFile();
+  const { file, dryRun } = parseArgs();
   await connectDB();
 
   const raw = await fs.readFile(file, 'utf8');
@@ -192,7 +194,7 @@ function flatten(convs: Conversation[]): ExportPayload {
 
   const payload: ExportPayload = flatten(conversations);
 
-  const summary: SyncSummary = await runBidirectionalSync(payload);
+  const summary: SyncSummary = await runBidirectionalSync(payload, { dryRun });
 
   console.log('=== Sync Summary ===');
   console.log(JSON.stringify(summary, null, 2));

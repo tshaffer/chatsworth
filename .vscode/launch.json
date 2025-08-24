@@ -34,7 +34,8 @@
       ],
       "args": [
         "backend/src/scripts/syncBidirectional.fromConversations.ts",
-        "/Users/tedshaffer/Documents/Projects/chatgpt-export-parser/data/chatGPTExport-08-24-25-0/conversations-with-projects.json"
+        "/Users/tedshaffer/Documents/Projects/chatgpt-export-parser/data/chatGPTExport-08-24-25-0/conversations-with-projects.json",
+        "--dryRun"
       ],
       "console": "integratedTerminal",
       "skipFiles": [

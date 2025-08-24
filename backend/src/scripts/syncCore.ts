@@ -105,11 +105,16 @@ function toIso(d?: Date | string | number | null): ISOString | undefined {
   return new Date(d).toISOString();
 }
 
+export interface SyncOptions {
+  dryRun?: boolean;
+}
 /**
  * Core sync function. Reconciles export payload with Mongo state,
  * using your field names and indexes.
  */
-export async function runBidirectionalSync(exp: ExportPayload): Promise<SyncSummary> {
+export async function runBidirectionalSync(exp: ExportPayload, options: SyncOptions = {}): Promise<SyncSummary> {
+  const { dryRun = false } = options;
+
   // Map export by IDs
   const expProjects = new Map(exp.projects.map(p => [p.id, p]));
   const expChats = new Map(exp.chats.map(c => [c.id, c]));
@@ -203,7 +208,14 @@ export async function runBidirectionalSync(exp: ExportPayload): Promise<SyncSumm
       }
     }
   }
-  if (projectOps.length) await ProjectModel.bulkWrite(projectOps);
+  
+  if (projectOps.length) {
+    if (dryRun) {
+      console.log(`[dryRun] Would apply ${projectOps.length} project ops`);
+    } else {
+      await ProjectModel.bulkWrite(projectOps);
+    }
+  }
 
   // ─────────────────────────────────────────────────────────
   // CHATS
@@ -284,7 +296,13 @@ export async function runBidirectionalSync(exp: ExportPayload): Promise<SyncSumm
     }
   }
 
-  if (chatOps.length) await ChatModel.bulkWrite(chatOps);
+  if (chatOps.length) {
+    if (dryRun) {
+      console.log(`[dryRun] Would apply ${chatOps.length} chat ops`);
+    } else {
+      await ChatModel.bulkWrite(chatOps);
+    }
+  }
 
   // ─────────────────────────────────────────────────────────
   // ENTRIES (keyed by chatId+position)
@@ -452,7 +470,13 @@ export async function runBidirectionalSync(exp: ExportPayload): Promise<SyncSumm
     }
   }
 
-  if (entryOps.length) await ChatEntryModel.bulkWrite(entryOps);
+  if (entryOps.length) {
+    if (dryRun) {
+      console.log(`[dryRun] Would apply ${entryOps.length} entry ops`);
+    } else {
+      await ChatEntryModel.bulkWrite(entryOps);
+    }
+  }
 
   return summary;
 }
