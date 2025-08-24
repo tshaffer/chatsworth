@@ -33,11 +33,14 @@
         "tsx",
       ],
       "args": [
-        "backend/src/scripts/sync-chatsworth-from-export.ts",
-        "--full",
+        "backend/src/scripts/syncBidirectional.fromConversations.ts",
         "/Users/tedshaffer/Documents/Projects/chatgpt-export-parser/data/chatGPTExport-08-24-25-0/conversations-with-projects.json"
       ],
-      "console": "integratedTerminal"
+      "console": "integratedTerminal",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "sourceMaps": true
     },
     {
       "name": "Run syncChatsworthFromExport (tsx)",

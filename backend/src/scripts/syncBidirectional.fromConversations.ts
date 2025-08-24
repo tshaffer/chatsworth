@@ -1,7 +1,9 @@
 /* backend/src/scripts/syncBidirectional.fromConversations.ts */
 /* eslint-disable no-console */
 import dotenv from 'dotenv';
-dotenv.config();
+dotenv.config({
+  path: path.resolve(__dirname, '../../.env')
+});
 
 import path from 'path';
 import fs from 'fs/promises';
