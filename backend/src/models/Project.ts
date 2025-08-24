@@ -1,33 +1,65 @@
-// models/Project.ts
-import mongoose from 'mongoose';
+import { Schema, model } from 'mongoose';
 
-const ChatSchema = new mongoose.Schema({
-  chatId: { type: String, required: true },     // rename `id` → `chatId` for clarity
-  title: { type: String, required: true },
-  projectId: { type: String, required: true },  // mirror parent for easier querying
-  projectName: { type: String, required: true },// from conv.project.name
-  messageCount: { type: Number, default: 0 },
-
-  // Export metadata (use Date, not string)
+export interface ChatSubdoc {
+  chatId: string;
+  title: string;
+  projectId: string;       // mirror parent for convenience
+  projectName: string;
+  messageCount: number;
   metadata: {
-    user: String,               // optional, if present in export
-    created: Date,              // from create_time
-    updated: Date,              // from update_time
-    exportedAt: Date,           // when we ran the sync
-    source: { type: String, default: 'chatgpt-export' }, // provenance
+    source?: string;       // 'chatgpt-export' | 'chatsworth-app'
+    exportedAt?: Date;     // when this chat was last exported/synced
+    sourceUpdatedAt?: Date;// remote last-modified (used for conflict resolution)
+    localCreatedAt?: Date; // subdoc timestamps (mapped below)
+    localUpdatedAt?: Date;
+  };
+}
+
+export interface ProjectDoc {
+  projectId: string;
+  name: string;
+  chats: ChatSubdoc[];
+  lastSyncedAt?: Date;     // this project touched during a sync
+  createdAt?: Date;        // auto (project doc)
+  updatedAt?: Date;        // auto (project doc)
+}
+
+const ChatSchema = new Schema<ChatSubdoc>(
+  {
+    chatId: { type: String, required: true },
+    title: { type: String, required: true },
+    projectId: { type: String, required: true },
+    projectName: { type: String, required: true },
+    messageCount: { type: Number, default: 0 },
+    metadata: {
+      source: { type: String, default: 'chatgpt-export' },
+      exportedAt: Date,
+      sourceUpdatedAt: Date,
+      localCreatedAt: Date,
+      localUpdatedAt: Date,
+    },
   },
-}, { _id: false });
+  {
+    _id: false,
+    // Keep subdoc timestamps separate from sourceUpdatedAt
+    timestamps: { createdAt: 'metadata.localCreatedAt', updatedAt: 'metadata.localUpdatedAt' },
+  }
+);
 
-const ProjectSchema = new mongoose.Schema({
-  projectId: { type: String, required: true, unique: true }, // maps to conv.project.id (or 'none')
-  name: { type: String, required: true },                    // conv.project.name or "No Project"
-  chats: { type: [ChatSchema], default: [] },
-  lastSyncedAt: Date,
-});
+const ProjectSchema = new Schema<ProjectDoc>(
+  {
+    projectId: { type: String, required: true, unique: true },
+    name: { type: String, required: true },
+    chats: { type: [ChatSchema], default: [] },
+    lastSyncedAt: Date,
+  },
+  { timestamps: true }
+);
 
-// helpful indexes
+// Indexes
+ProjectSchema.index({ projectId: 1 }, { unique: true });
 ProjectSchema.index({ 'chats.chatId': 1 });
 ProjectSchema.index({ name: 1 });
 ProjectSchema.index({ 'chats.title': 'text' });
 
-export const ProjectModel = mongoose.model('Project', ProjectSchema);
+export const ProjectModel = model<ProjectDoc>('Project', ProjectSchema);

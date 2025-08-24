@@ -1,32 +1,59 @@
-import mongoose from 'mongoose';
+import { Schema, Types, model } from 'mongoose';
 
-const ChatEntrySchema = new mongoose.Schema({
-  projectId: { type: String, required: true },
-  chatId: { type: String, required: true },
-  position: { type: Number, required: true },  // 0..N per conversation (user→assistant pairs)
-  originalPrompt: String,
-  promptSummary: String,                         // optional, if you add summarization later
-  response: String,
+export interface ChatEntryDoc {
+  _id: Types.ObjectId;            // <-- add this
+  entryId: string;           // NEW: stable user-message ID from export
+  projectId: string;
+  chatId: string;
+  position: number;          // 0..N within chat (reorderable)
+  title?: string;
+  originalPrompt?: string;
+  promptSummary?: string;
+  response?: string;
 
-  // optional helpful metadata:
-  createdAt: Date,   // earliest timestamp in this pair, if you compute it
-  updatedAt: Date,   // last timestamp in this pair, if you compute it
-  exportedAt: Date,
-  source: { type: String, default: 'chatgpt-export' },
+  // provenance & freshness
+  source?: string;           // 'chatgpt-export' | 'chatsworth-app'
+  sourceUpdatedAt?: Date;    // remote last-modified time (compare on sync)
+  fingerprint?: string;      // SHA-256 over normalized fields
+  exportedAt?: Date;         // when we wrote this from export last
 
-  // embeddings
-  embedding: {
-    type: [Number],
-    default: undefined,
-    validate: {
-      // Optional: enforce dimension (1536 for text-embedding-3-small)
-      validator: (v: number[] | undefined) => !v || v.length === 1536,
-      message: 'embedding must be 1536-dimensional',
+  // local timestamps
+  createdAt?: Date;
+  updatedAt?: Date;
+
+  // embeddings (optional)
+  embedding?: number[];
+}
+
+const ChatEntrySchema = new Schema<ChatEntryDoc>(
+  {
+    entryId: { type: String, required: true, unique: true },
+    projectId: { type: String, required: true, index: true },
+    chatId: { type: String, required: true, index: true },
+    position: { type: Number, required: true },
+    title: String,
+    originalPrompt: String,
+    promptSummary: String,
+    response: String,
+    source: { type: String, default: 'chatgpt-export' },
+    sourceUpdatedAt: Date,
+    fingerprint: String,
+    exportedAt: Date,
+    embedding: {
+      type: [Number],
+      default: undefined,
+      validate: {
+        validator: (v: number[] | undefined) => !v || v.length === 1536,
+        message: 'embedding must be 1536-dimensional',
+      },
     },
   },
-}, { timestamps: false });
+  { timestamps: true }
+);
 
-// Uniqueness: 1 entry per (chatId, position)
-ChatEntrySchema.index({ chatId: 1, position: 1 }, { unique: true });
+// Helpful indexes
+ChatEntrySchema.index({ entryId: 1 }, { unique: true });
+ChatEntrySchema.index({ chatId: 1, position: 1 }, { unique: true }); // still useful for ordering
+ChatEntrySchema.index({ chatId: 1, updatedAt: -1 });
 
-export const ChatEntryModel = mongoose.model('ChatEntry', ChatEntrySchema);
+export const ChatEntryModel = model<ChatEntryDoc>('ChatEntry', ChatEntrySchema);

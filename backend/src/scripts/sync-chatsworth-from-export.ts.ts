@@ -488,7 +488,8 @@ async function main() {
           { "chats.chatId": chatId, projectId: { $ne: projectId } },
           { $pull: { chats: { chatId } } }
         );
-        chatsMoved += res.modifiedCount || 0;
+        const mc = (res as any).modifiedCount ?? (res as any).nModified ?? 0;
+        chatsMoved += mc;
 
         // Ensure ChatEntry.projectId reflects the new home
         await ChatEntryModel.updateMany({ chatId, projectId: { $ne: projectId } }, { $set: { projectId } });

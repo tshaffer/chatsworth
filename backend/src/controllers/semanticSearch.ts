@@ -118,10 +118,10 @@ export async function semanticSearch(
     const chatTitleById = new Map<string, string>();
 
     for (const p of projects) {
-      projectNameById.set(String(p.id), String(p.name ?? p.id));
+      projectNameById.set(String(p.projectId), String(p.name ?? p.projectId));
       for (const ch of (p.chats ?? [])) {
-        if (ch && ch.id) {
-          chatTitleById.set(String(ch.id), String(ch.title ?? ch.id));
+        if (ch && ch.chatId) {
+          chatTitleById.set(String(ch.chatId), String(ch.title ?? ch.chatId));
         }
       }
     }

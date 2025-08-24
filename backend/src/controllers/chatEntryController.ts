@@ -1,33 +1,35 @@
 // controllers/chatEntryController.ts
 import { Request, Response } from 'express';
 
-import { ChatEntryModel } from '../models';
-
-interface ChatEntryParams {
-  chatId: string;
-  entryIndex: string;
-}
+import { ChatEntryDoc, ChatEntryModel } from '../models';
+import { toDomainEntry } from '../types/mappers';
 
 interface UpdateChatEntryBody {
   promptSummary?: string;
 }
 
-export const getChatEntries = async (req: Request, res: Response): Promise<void> => {
-  const { chatId } = req.query;
+export const getChatEntries = async (req: Request, res: Response) => {
+  const { chatId } = req.query as { chatId: string };
+  const docs = await ChatEntryModel
+    .find({ chatId })
+    .sort({ position: 1, _id: 1 })
+    .lean<ChatEntryDoc[]>()
+    .exec();
 
-  if (!chatId || typeof chatId !== 'string') {
-    res.status(400).json({ error: 'chatId query parameter is required' });
-    return;
-  }
-
-  try {
-    const entries = await ChatEntryModel.find({ chatId }).sort({ position: 1 }).lean();
-    res.json(entries);
-  } catch (err) {
-    console.error('Error fetching chat entries:', err);
-    res.status(500).json({ error: 'Failed to fetch chat entries' });
-  }
+  return res.json({ entries: docs.map(toDomainEntry) });
 };
+
+export async function patchChatEntry(req: Request, res: Response) {
+  const { entryId } = req.params;
+  const { response } = req.body;
+  const updated = await ChatEntryModel
+    .findByIdAndUpdate(entryId, { $set: { response } }, { new: true })
+    .lean<ChatEntryDoc>()
+    .exec();
+
+  if (!updated) return res.status(404).json({ error: 'Entry not found' });
+  return res.json(toDomainEntry(updated));
+}
 
 export const updateChatEntryPromptSummary = async (
   req: Request<any, {}, UpdateChatEntryBody>,
@@ -67,31 +69,6 @@ export const deleteChatEntry = async (
   const { id } = req.params;
   await ChatEntryModel.findByIdAndDelete(id);
   res.sendStatus(204);
-
-  // const { chatId, entryIndex } = req.params;
-
-  // const project: Document & ProjectType | null = await ProjectModel.findOne({ 'chats.id': chatId });
-  // if (!project) {
-  //   res.status(404).json({ error: 'Chat not found' });
-  //   return;
-  // }
-
-  // const chat: Chat | undefined = project.chats.find((c) => c.id === chatId);
-  // if (!chat) {
-  //   res.status(404).json({ error: 'Chat not found in project' });
-  //   return;
-  // }
-
-  // const index = Number(entryIndex);
-  // if (isNaN(index) || index < 0 || index >= chat.entries.length) {
-  //   res.status(404).json({ error: 'ChatEntry not found' });
-  //   return;
-  // }
-
-  // chat.entries.splice(index, 1);
-  // await project.save();
-
-  // res.json({ message: 'ChatEntry deleted' });
 };
 
 export const reorderChatEntries = async (req: Request, res: Response) => {
@@ -143,9 +120,3 @@ export const moveChatEntry = async (req: Request, res: Response) => {
   }
 };
 
-export async function patchChatEntry(req: Request, res: Response) {
-  const { entryId } = req.params;
-  const { response } = req.body;
-  await ChatEntryModel.updateOne({ _id: entryId }, { $set: { response } }).exec();
-  res.status(204).end();
-}

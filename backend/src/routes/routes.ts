@@ -7,7 +7,7 @@ import {
   exportChat,
   getChatEntries,
   getVersion,
-  markdownImporterEndpoint,
+  // markdownImporterEndpoint,
   moveChatEntry,
   moveChatToProject,
   patchChatEntry,
@@ -27,6 +27,12 @@ import { validate } from './validate';
 import { SearchQuerySchema, SemanticSearchBodySchema } from './schemas';
 
 export const createRoutes = (app: express.Application) => {
+
+  app.use((req, _res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+    next();
+  });
+
   app.get('/api/v1/version', getVersion);
 
   app.get('/api/v1/projects', getProjects);
@@ -39,7 +45,7 @@ export const createRoutes = (app: express.Application) => {
 
   app.post('/api/v1/ask-chatgpt', askChatGptHandler);
 
-  app.post('/api/v1/importMarkdown', markdownImporterEndpoint);
+  // app.post('/api/v1/importMarkdown', markdownImporterEndpoint);
 
   app.post('/api/v1/projects', createProject);
   app.post('/api/v1/projects/:projectId/reorderChats', reorderChats);
