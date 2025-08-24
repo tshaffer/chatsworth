@@ -18,8 +18,6 @@ const ChatSchema = new mongoose.Schema({
   },
 }, { _id: false });
 
-export const ChatModel = mongoose.model('Chat', ChatSchema);
-
 const ProjectSchema = new mongoose.Schema({
   projectId: { type: String, required: true, unique: true }, // maps to conv.project.id (or 'none')
   name: { type: String, required: true },                    // conv.project.name or "No Project"
