@@ -1,3 +1,4 @@
+/* backend/src/scripts/syncBidirectional.fromConversations.ts */
 /* eslint-disable no-console */
 import dotenv from 'dotenv';
 dotenv.config();
@@ -6,49 +7,42 @@ import path from 'path';
 import fs from 'fs/promises';
 import mongoose from 'mongoose';
 import { connectDB } from '../config/db';
-import { ExportPayload, runBidirectionalSync } from './syncCore';
+import { runBidirectionalSync, type ExportPayload, type ISOString, type SyncSummary } from './syncCore';
 
-// ──────────────────────────────────────────────────────────────
-// Types that match your “conversations-with-projects.json”
-// (lightweight; we only use the parts we need)
-// ──────────────────────────────────────────────────────────────
-type ISO = string;
+/** Raw ChatGPT export types (pared down to what we use) */
+type Role = 'user' | 'assistant' | 'system' | string;
 
-type ConvProject = {
-  id: string | null;
-  name: string | null;
-} | null;
-
-type ExportMessage = {
+interface ExportMessage {
   id: string;
-  author?: { role?: 'user' | 'assistant' | 'system' | string };
-  content?: { content_type?: string; parts?: string[] } | any;
-  create_time?: number;        // seconds since epoch (typical in ChatGPT export)
+  author?: { role?: Role };
+  content?: unknown;
+  create_time?: number; // seconds since epoch (typical for exports)
   update_time?: number;
-  // …other fields ignored
-};
+}
 
-type MappingNode = {
+interface MappingNode {
   id: string;
   message?: ExportMessage | null;
   parent?: string | null;
   children?: string[];
-};
+}
 
-type Conversation = {
+interface ConvProject {
+  id: string | null;
+  name: string | null;
+}
+
+interface Conversation {
   id: string;
   title?: string | null;
   create_time?: number;
   update_time?: number;
   current_node?: string | null;
   mapping?: Record<string, MappingNode>;
-  project?: ConvProject;
-  // …other fields ignored
-};
+  project?: ConvProject | null;
+}
 
-// ──────────────────────────────────────────────────────────────
-// CLI usage: tsx src/scripts/syncBidirectional.fromConversations.ts /path/to/conversations-with-projects.json
-// ──────────────────────────────────────────────────────────────
+/** CLI arg */
 function argFile(): string {
   const p = process.argv[2];
   if (!p) {
@@ -58,42 +52,48 @@ function argFile(): string {
   return path.resolve(p);
 }
 
-function toIso(t?: number): ISO | undefined {
-  if (!t && t !== 0) return undefined;
-  // ChatGPT exports usually store seconds; guard if it’s ms already.
+/** seconds/ms → ISO string (or undefined) */
+function toIso(t?: number): ISOString | undefined {
+  if (t === undefined || t === null) return undefined;
   const ms = t > 1e12 ? t : t * 1000;
   return new Date(ms).toISOString();
 }
 
-function firstLine(s: string): string {
-  const line = s.split(/\r?\n/)[0] ?? '';
-  return line.trim();
-}
-
-// Extract plain text from a ChatGPT export “message”
+/** Best-effort text extraction from typical ChatGPT export message.content */
 function extractText(msg?: ExportMessage): string {
-  if (!msg) return '';
+  if (!msg || msg.content == null) return '';
   const c = msg.content as any;
-  if (!c) return '';
-  // Typical structure: { content_type: "text", parts: [ "...", ... ] }
-  if (Array.isArray(c.parts)) return c.parts.join('\n');
-  if (typeof c.text === 'string') return c.text;
+
+  // common structure: { content_type: "text", parts: ["..."] }
+  if (Array.isArray(c?.parts)) return c.parts.join('\n');
+
+  // sometimes: { text: "..." }
+  if (typeof c?.text === 'string') return c.text;
+
+  // fallback if content itself is a string
   if (typeof c === 'string') return c;
+
   return '';
 }
 
-// Walk the mapping nodes → get messages in chronological order
+/** Return first non-empty line as a lightweight title */
+function firstLine(s: string): string {
+  const line = (s ?? '').split(/\r?\n/)[0] ?? '';
+  return line.trim();
+}
+
+/** Extract user+assistant messages in chronological order */
 function extractMessages(conv: Conversation): ExportMessage[] {
   const nodes = conv.mapping ? Object.values(conv.mapping) : [];
   const msgs: ExportMessage[] = [];
 
   for (const n of nodes) {
-    if (n?.message?.author?.role === 'user' || n?.message?.author?.role === 'assistant') {
-      msgs.push(n.message);
-    }
+    const m = n?.message;
+    if (!m) continue;
+    const role = m.author?.role;
+    if (role === 'user' || role === 'assistant') msgs.push(m);
   }
 
-  // sort by create_time (fallback to update_time)
   msgs.sort((a, b) => {
     const ta = a.create_time ?? a.update_time ?? 0;
     const tb = b.create_time ?? b.update_time ?? 0;
@@ -103,21 +103,10 @@ function extractMessages(conv: Conversation): ExportMessage[] {
   return msgs;
 }
 
-// Pair user → assistant into ChatEntries for Chatsworth
-function pairIntoEntries(conv: Conversation) {
+/** Pair user → immediate next assistant turn into one Chatsworth entry */
+function pairIntoEntries(conv: Conversation): ExportPayload['entries'] {
   const messages = extractMessages(conv);
-  const entries: {
-    id: string;
-    projectId: string;
-    chatId: string;
-    position: number;
-    title: string;
-    originalPrompt: string;
-    promptSummary: string;
-    response: string;
-    updatedAt?: ISO;
-    deleted?: boolean;
-  }[] = [];
+  const entries: ExportPayload['entries'] = [];
 
   const projectId = conv.project?.id ?? 'manual_unassigned';
   const chatId = conv.id;
@@ -128,7 +117,8 @@ function pairIntoEntries(conv: Conversation) {
     if (m.author?.role !== 'user') continue;
 
     const userText = extractText(m);
-    // Find the next assistant response (if contiguous)
+
+    // the assistant reply right after the user message, if present
     let assistantText = '';
     let assistantTime: number | undefined;
     if (i + 1 < messages.length && messages[i + 1].author?.role === 'assistant') {
@@ -136,12 +126,8 @@ function pairIntoEntries(conv: Conversation) {
       assistantTime = messages[i + 1].update_time ?? messages[i + 1].create_time;
     }
 
-    const entryId = m.id; // Stable ID per user message (good as primary for Chatsworth)
-    const updated = Math.max(
-      m.update_time ?? m.create_time ?? 0,
-      assistantTime ?? 0
-    );
-
+    const entryId = m.id; // stable user message ID works well as entry ID
+    const updated = Math.max(m.update_time ?? m.create_time ?? 0, assistantTime ?? 0);
     entries.push({
       id: entryId,
       projectId,
@@ -149,7 +135,7 @@ function pairIntoEntries(conv: Conversation) {
       position: position++,
       title: firstLine(userText) || (conv.title ?? '') || '(untitled)',
       originalPrompt: userText,
-      promptSummary: '',     // Chatsworth may fill/override later
+      promptSummary: '', // Chatsworth can override later
       response: assistantText,
       updatedAt: toIso(updated),
       deleted: false,
@@ -159,9 +145,9 @@ function pairIntoEntries(conv: Conversation) {
   return entries;
 }
 
-// Convert your conversations-with-projects.json → flattened export payload
+/** Convert conversations-with-projects.json → flattened payload */
 function flatten(convs: Conversation[]): ExportPayload {
-  const projectsMap = new Map<string, { id: string; name: string; updatedAt?: ISO }>();
+  const projectsMap = new Map<string, { id: string; name: string; updatedAt?: ISOString }>();
   const chats: ExportPayload['chats'] = [];
   const entries: ExportPayload['entries'] = [];
 
@@ -169,7 +155,6 @@ function flatten(convs: Conversation[]): ExportPayload {
     const projId = conv.project?.id ?? 'manual_unassigned';
     const projName = conv.project?.name ?? 'Unassigned';
 
-    // collect project
     if (!projectsMap.has(projId)) {
       projectsMap.set(projId, {
         id: projId,
@@ -178,7 +163,6 @@ function flatten(convs: Conversation[]): ExportPayload {
       });
     }
 
-    // collect chat (conversation)
     chats.push({
       id: conv.id,
       projectId: projId,
@@ -186,7 +170,6 @@ function flatten(convs: Conversation[]): ExportPayload {
       updatedAt: toIso(conv.update_time ?? conv.create_time),
     });
 
-    // collect entries
     const paired = pairIntoEntries(conv);
     entries.push(...paired);
   }
@@ -198,9 +181,7 @@ function flatten(convs: Conversation[]): ExportPayload {
   };
 }
 
-// ──────────────────────────────────────────────────────────────
-// MAIN
-// ──────────────────────────────────────────────────────────────
+/** MAIN */
 (async () => {
   const file = argFile();
   await connectDB();
@@ -208,19 +189,17 @@ function flatten(convs: Conversation[]): ExportPayload {
   const raw = await fs.readFile(file, 'utf8');
   const conversations: Conversation[] = JSON.parse(raw);
 
-  // Flatten to the format the core sync expects
-  const payload = flatten(conversations);
+  const payload: ExportPayload = flatten(conversations);
 
-  // Run the same reconciliation core as before
-  const summary = await runBidirectionalSync(payload);
+  const summary: SyncSummary = await runBidirectionalSync(payload);
 
   console.log('=== Sync Summary ===');
   console.log(JSON.stringify(summary, null, 2));
 
   await mongoose.disconnect();
   process.exit(0);
-})().catch(async (err) => {
+})().catch(async (err: unknown) => {
   console.error('Sync failed:', err);
-  try { await mongoose.disconnect(); } catch { }
+  try { await mongoose.disconnect(); } catch {}
   process.exit(1);
 });
