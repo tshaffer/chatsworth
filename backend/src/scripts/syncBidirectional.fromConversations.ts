@@ -129,7 +129,6 @@ function pairIntoEntries(conv: Conversation): ExportPayload['entries'] {
     const entryId = m.id; // stable user message ID works well as entry ID
     const updated = Math.max(m.update_time ?? m.create_time ?? 0, assistantTime ?? 0);
     entries.push({
-      id: entryId,
       projectId,
       chatId,
       position: position++,
