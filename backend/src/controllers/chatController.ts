@@ -1,8 +1,9 @@
 // controllers/chatController.ts
 import { Request, Response } from 'express';
-import { ProjectModel } from '../models/Project';
-import { Project, Chat, ChatEntry } from '../types'; // Adjust path to where your types are defined
+import { ProjectDoc, ProjectModel } from '../models/Project';
 import { ChatEntryModel } from '../models/ChatEntry';
+import type { ChatEntryDoc } from '../models/ChatEntry';
+import type { ChatSubdoc } from '../models/Project';
 
 interface RenameOrMoveChatBody {
   newTitle?: string;
@@ -12,52 +13,58 @@ interface RenameOrMoveChatBody {
 export const renameOrMoveChat = async (
   req: Request<{ chatId: string }, {}, RenameOrMoveChatBody>,
   res: Response
-): Promise<void> => {
+) => {
   const { chatId } = req.params;
   const { newTitle, targetProjectId } = req.body;
 
-  const sourceProject = await ProjectModel.findOne({ 'chats.id': chatId }).lean() as Project | null;
-  if (!sourceProject) {
-    res.status(404).json({ error: 'Chat not found' });
-    return;
-  }
+  const sourceProject = await ProjectModel
+    .findOne({ 'chats.chatId': chatId })
+    .lean<ProjectDoc>();
+  if (!sourceProject) return res.status(404).json({ error: 'Chat not found' });
 
-  const chatIndex = sourceProject.chats.findIndex((chat: Chat) => chat.id === chatId);
-  if (chatIndex === -1) {
-    res.status(404).json({ error: 'Chat not found in project' });
-    return;
-  }
+  const chatIndex = (sourceProject.chats ?? []).findIndex(c => c.chatId === chatId);
+  if (chatIndex === -1) return res.status(404).json({ error: 'Chat not found in project' });
 
-  const chatToMove = sourceProject.chats[chatIndex];
-  if (newTitle) {
-    chatToMove.title = newTitle;
-  }
+  const chat = { ...sourceProject.chats[chatIndex] };
+  if (newTitle?.trim()) chat.title = newTitle.trim();
 
-  if (targetProjectId && targetProjectId !== sourceProject.id) {
-    // Remove from source project
+  // MOVE
+  if (targetProjectId && targetProjectId !== sourceProject.projectId) {
+    const targetProject = await ProjectModel.findOne({ projectId: targetProjectId });
+    if (!targetProject) return res.status(404).json({ error: 'Target project not found' });
+
+    // remove from source
     await ProjectModel.updateOne(
-      { id: sourceProject.id },
-      { $pull: { chats: { id: chatId } } }
+      { projectId: sourceProject.projectId },
+      { $pull: { chats: { chatId } } }
     );
 
-    // Add to target project
-    const targetProject = await ProjectModel.findOne({ id: targetProjectId });
-    if (!targetProject) {
-      res.status(404).json({ error: 'Target project not found' });
-      return;
-    }
-
-    targetProject.chats.push(chatToMove);
+    // push into target (DB shape)
+    targetProject.chats.push({
+      ...chat,
+      projectId: targetProject.projectId,
+      projectName: targetProject.name,
+      metadata: {
+        ...chat.metadata,
+        source: 'chatsworth-app',
+        sourceUpdatedAt: new Date(),
+        exportedAt: new Date(),
+      },
+    });
     await targetProject.save();
-  } else {
-    // Update title in place
+
+    return res.json({ message: 'Chat moved' });
+  }
+
+  // RENAME in-place
+  if (newTitle?.trim()) {
     await ProjectModel.updateOne(
-      { id: sourceProject.id, 'chats.id': chatId },
-      { $set: { 'chats.$.title': chatToMove.title } }
+      { projectId: sourceProject.projectId, 'chats.chatId': chatId },
+      { $set: { 'chats.$.title': chat.title } }
     );
   }
 
-  res.json({ message: 'Chat updated' });
+  return res.json({ message: 'Chat updated' });
 };
 
 export const deleteChat = async (req: Request, res: Response) => {
@@ -65,12 +72,12 @@ export const deleteChat = async (req: Request, res: Response) => {
   const { projectId, chatId } = req.params;
 
   try {
-    const project = await ProjectModel.findOne({ id: projectId });
+    const project = await ProjectModel.findOne({ projectId });
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    const chatIndex = (project.chats as Chat[]).findIndex((chat: Chat) => chat.id === chatId);
+    const chatIndex = project.chats.findIndex((c) => c.chatId === chatId);
     if (chatIndex === -1) {
       return res.status(404).json({ error: 'Chat not found' });
     }
@@ -94,14 +101,14 @@ export const exportChat = async (
   const { chatId } = req.params;
 
   // Find the project that contains this chat
-  const project = await ProjectModel.findOne({ 'chats.id': chatId }).lean();
+  const project = await ProjectModel.findOne({ 'chats.chatId': chatId }).lean();
 
   if (!project) {
     res.status(404).send('Chat not found');
     return;
   }
 
-  const chat: Chat | undefined = project.chats.find((c: Chat) => c.id === chatId);
+  const chat = project.chats.find((c) => c.chatId === chatId); // type: ChatSubdoc | undefined
 
   if (!chat) {
     res.status(404).send('Chat not found');
@@ -113,14 +120,14 @@ export const exportChat = async (
 
   let markdown = `# ${chat.title}\n\n`;
 
-  if (chat.metadata) {
-    markdown += `**User:** ${chat.metadata.user || ''}\n`;
-    markdown += `**Created:** ${chat.metadata.created || ''}\n`;
-    markdown += `**Updated:** ${chat.metadata.updated || ''}\n`;
-    markdown += `**Exported:** ${new Date().toISOString()}\n\n`;
-  }
+  // if (chat.metadata) {
+  //   markdown += `**User:** ${chat.metadata.user || ''}\n`;
+  //   markdown += `**Created:** ${chat.metadata.created || ''}\n`;
+  //   markdown += `**Updated:** ${chat.metadata.updated || ''}\n`;
+  //   markdown += `**Exported:** ${new Date().toISOString()}\n\n`;
+  // }
 
-  entries.forEach((entry: ChatEntry, idx: number) => {
+  entries.forEach((entry: ChatEntryDoc, idx: number) => {
     markdown += `## Prompt:\n${entry.originalPrompt}\n\n`;
     markdown += `**Summary:** ${entry.promptSummary}\n\n`;
     markdown += `**Response:**\n${entry.response}\n\n`;

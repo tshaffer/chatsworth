@@ -12,7 +12,7 @@ type State = {
 
 // helper to normalize server payload to ChatEntry
 const normalizeServerEntry = (e: any): ChatEntry => ({
-  id: String(e.id ?? e._id),
+  entryId: String(e.entryId ?? e._id),
   chatId: String(e.chatId),
   projectId: String(e.projectId),
   originalPrompt: e.originalPrompt ?? '',
@@ -80,15 +80,15 @@ const slice = createSlice({
       action: PayloadAction<{ chatId: string; entries: ChatEntry[] }>
     ) {
       const { chatId, entries } = action.payload;
-      state.idsByChatId[chatId] = entries.map((e) => e.id);
-      for (const e of entries) state.byId[e.id] = e;
+      state.idsByChatId[chatId] = entries.map((e) => e.entryId);
+      for (const e of entries) state.byId[e.entryId] = e;
     },
   },
   extraReducers: (builder) => {
     builder.addCase(fetchChatEntries.fulfilled, (state, action) => {
       const { chatId, entries } = action.payload;
-      state.idsByChatId[chatId] = entries.map((e) => e.id);
-      for (const e of entries) state.byId[e.id] = e;
+      state.idsByChatId[chatId] = entries.map((e) => e.entryId);
+      for (const e of entries) state.byId[e.entryId] = e;
     });
   },
 });

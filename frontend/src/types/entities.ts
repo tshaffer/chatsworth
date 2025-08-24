@@ -31,7 +31,7 @@ export interface Chat {
 }
 
 export interface ChatEntry {
-  id: string;
+  entryId: string;
   chatId: string;
   projectId: string;
   originalPrompt: string;

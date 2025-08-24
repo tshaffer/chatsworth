@@ -1,42 +1,34 @@
-// Top-level structure returned from the backend
-export interface ProjectsState {
-  projectList: Project[];
+export interface Chat {
+  id: string;             // domain id = chatId in DB
+  title: string;
+  projectId: string;
+  projectName: string;
+  messageCount: number;
 }
 
-// A project (e.g., named folder or session group)
 export interface Project {
-  id: string; // unique identifier
+  id: string;             // domain id = projectId in DB
   name: string;
   chats: Chat[];
 }
 
-// Metadata extracted from the markdown
-export interface MarkdownMetadata {
-  title: string;
-  user: string;
-  created: string;
-  updated: string;
-  exported: string;
+export interface ChatEntry {
+  entryId: string;        // NEW: stable key
+  projectId: string;
+  chatId: string;
+  position: number;
+  // make these optional to match DB (and avoid TS errors)
+  originalPrompt?: string;
+  promptSummary?: string;
+  response?: string;
 }
 
-export interface Chat {
-  id: string;
-  title: string;
-  metadata?: MarkdownMetadata;
+// If you expose ProjectsState in responses:
+export interface ProjectsState {
+  projectList: Project[];
 }
 
 // A single prompt/response pair
-export interface ChatEntry {
-  _id?: string; // optional for creating new entries, present when loaded from DB
-  chatId: string;
-  projectId: string;
-  originalPrompt: string;
-  promptSummary: string;
-  response: string;
-  position?: number; // optional, used to determine order within the chat
-  embedding?: number[]; // optional, if vector embedding is used
-}
-
 export interface SemanticSearchResultEntry {
   _id: string;
   chatId: string;
