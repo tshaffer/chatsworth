@@ -527,8 +527,7 @@ async function main() {
       if (phaseAOps.length) await ChatEntryModel.bulkWrite(phaseAOps, { ordered: false });
       if (insertDocs.length) {
         const ins = await ChatEntryModel.insertMany(insertDocs, { ordered: false });
-        debugger;
-        entriesInserted += ins.length;
+        entriesInserted += (ins as any).length;
       }
       if (phaseBOps.length) await ChatEntryModel.bulkWrite(phaseBOps, { ordered: false });
 
