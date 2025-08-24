@@ -35,7 +35,7 @@
       "args": [
         "backend/src/scripts/sync-chatsworth-from-export.ts",
         "--full",
-        "/Users/tedshaffer/Documents/Projects/chatgpt-export-parser/data/chatGPTExport-08-23-25-0/conversations-with-projects.json"
+        "/Users/tedshaffer/Documents/Projects/chatgpt-export-parser/data/chatGPTExport-08-24-25-0/conversations-with-projects.json"
       ],
       "console": "integratedTerminal"
     },
@@ -51,7 +51,7 @@
       "args": [
         "backend/src/scripts/sync-chatsworth-from-export.ts",
         "--full",
-        "/Users/tedshaffer/Documents/Projects/chatgpt-export-parser/data/chatGPTExport-08-23-25-0/conversations-with-projects.json",
+        "/Users/tedshaffer/Documents/Projects/chatgpt-export-parser/data/chatGPTExport-08-24-25-0/conversations-with-projects.json",
         "--dry-run"
       ],
       "console": "integratedTerminal"

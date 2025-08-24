@@ -23,6 +23,10 @@
  *   - Repositions kept entries safely (two-phase update)
  *   - PRUNES DB entries not present in latest export (by identity)
  *   - DELETES chats absent from the full export (plus their entries)
+ * - Extra logging:
+ *   - New projects and project renames
+ *   - Chat title renames
+ *   - Each pruned prompt (position + snippet)
  */
 
 import dotenv from 'dotenv';
@@ -232,7 +236,7 @@ function pairVisibleUserAssistant(
         set: {
           projectId,
           originalPrompt: prompt,
-          promptSummary,
+          promptSummary: promptSummary,
           response,
           updatedAt,
           exportedAt,
@@ -283,7 +287,7 @@ async function main() {
 
   const now = new Date();
 
-  // === 1) Projects upsert (simulate in dry-run using DB reads) ===
+  // === 1) Projects upsert (and detect new/renamed) ===
   const projectMap = new Map<string, string>();
   for (const conv of fullConvs) {
     const pid = conv.project?.id ?? "manual_unassigned";
@@ -292,7 +296,30 @@ async function main() {
   }
   const projectIds = Array.from(projectMap.keys());
 
-  // Which projects already exist?
+  // Detect new / renamed projects BEFORE upsert
+  const existingProjectsArr = await ProjectModel.find({}, { projectId: 1, name: 1 }).lean();
+  const existingProjects = new Map<string, string>(
+    (existingProjectsArr as any[]).map((p) => [p.projectId as string, (p.name as string) || ""])
+  );
+
+  const newProjects: Array<{ projectId: string; name: string }> = [];
+  const renamedProjects: Array<{ projectId: string; from: string; to: string }> = [];
+  for (const [pid, pname] of projectMap.entries()) {
+    const prev = existingProjects.get(pid);
+    if (prev == null) newProjects.push({ projectId: pid, name: pname });
+    else if ((prev || "") !== (pname || "")) renamedProjects.push({ projectId: pid, from: prev, to: pname });
+  }
+
+  if (newProjects.length) {
+    console.log(`• New projects detected: ${newProjects.length}`);
+    for (const p of newProjects) console.log(`    + [${p.projectId}] ${p.name}`);
+  }
+  if (renamedProjects.length) {
+    console.log(`• Project renames detected: ${renamedProjects.length}`);
+    for (const r of renamedProjects) console.log(`    ~ [${r.projectId}] "${r.from}" → "${r.to}"`);
+  }
+
+  // Which projects already exist? (for summary counts)
   const existingProjectIds = new Set<string>(
     await ProjectModel.distinct("projectId", { projectId: { $in: projectIds } })
   );
@@ -375,11 +402,19 @@ async function main() {
     // Where does this chat currently live?
     const currentHomes = await ProjectModel.find(
       { "chats.chatId": chatId },
-      { projectId: 1 },
+      { projectId: 1, "chats.$": 1 }
     ).lean();
 
     const livesElsewhere = currentHomes.some((d: any) => d.projectId !== projectId);
     const homesElse = currentHomes.filter((d: any) => d.projectId !== projectId).map((d: any) => d.projectId);
+
+    // Detect chat title rename (compare to existing subdoc title if present)
+    const existingChatCarrier = await ProjectModel.findOne(
+      { "chats.chatId": chatId },
+      { "chats.$": 1, projectId: 1 }
+    ).lean();
+    const oldTitle: string | undefined = (existingChatCarrier as any)?.chats?.[0]?.title;
+    const renamedChat = !!(oldTitle && oldTitle !== title);
 
     // Load existing DB entries for this chat to diff by hash
     type ExistingDoc = { _id: any; position: number; originalPrompt?: string; response?: string };
@@ -391,7 +426,6 @@ async function main() {
     const existingByHash = new Map<string, ExistingDoc>();
     for (const d of existingDocs) {
       const h = pairHash(d.originalPrompt || "", d.response || "");
-      // If duplicates exist (shouldn't), keep the lowest position to be deterministic
       const prev = existingByHash.get(h);
       if (!prev || d.position < prev.position) existingByHash.set(h, d);
     }
@@ -424,15 +458,18 @@ async function main() {
       }
     }
 
-    // Log headline per chat
+    // Headline per chat
     const headlineParts = [`pairs:${pairsWithHash.length}`];
     if (pruneDocs.length) headlineParts.push(`prune:${pruneDocs.length}`);
     if (insertDocs.length) headlineParts.push(`inserts:${insertDocs.length}`);
     if (livesElsewhere) headlineParts.push(`move from [${homesElse.join(", ")}]`);
-    if (pruneDocs.length || insertDocs.length || livesElsewhere) {
+    if (renamedChat) headlineParts.push("rename");
+    if (pruneDocs.length || insertDocs.length || livesElsewhere || renamedChat) {
       console.log(`✔︎ ${projectName} :: ${title} — ${headlineParts.join(", ")}`);
+      if (renamedChat) {
+        console.log(`    renamed: "${oldTitle}" → "${title}"`);
+      }
     }
-
     // Print each pruned prompt
     if (pruneDocs.length) {
       console.log("    pruned entries:");
@@ -526,8 +563,11 @@ async function main() {
 
       if (phaseAOps.length) await ChatEntryModel.bulkWrite(phaseAOps, { ordered: false });
       if (insertDocs.length) {
-        const ins = await ChatEntryModel.insertMany(insertDocs, { ordered: false });
-        entriesInserted += (ins as any).length;
+        const res: any = await ChatEntryModel.insertMany(insertDocs, {
+          ordered: false,
+          rawResult: true, // <-- key bit
+        });
+        entriesInserted += res?.insertedCount ?? 0;
       }
       if (phaseBOps.length) await ChatEntryModel.bulkWrite(phaseBOps, { ordered: false });
 
