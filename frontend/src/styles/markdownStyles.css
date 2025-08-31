@@ -1,0 +1,15 @@
+.markdown table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+}
+
+.markdown th, .markdown td {
+  border: 1px solid #ccc;
+  padding: 8px;
+  text-align: left;
+}
+
+.markdown th {
+  background-color: #f5f5f5;
+}

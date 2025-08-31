@@ -2,7 +2,6 @@
 import { createSlice, createAsyncThunk, PayloadAction, nanoid } from '@reduxjs/toolkit';
 import axios from 'axios';
 import { ChatEntry } from '../types';
-import type { RootState } from './store'; // adjust the path if your store file is elsewhere
 
 type EntriesById = Record<string, ChatEntry>;
 type State = {
