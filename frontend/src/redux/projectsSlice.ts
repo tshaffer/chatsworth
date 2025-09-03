@@ -1,7 +1,7 @@
 // redux/projectsSlice.ts
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import axios from 'axios';
-import { Chat, MoveChatEntryBody, Project, ProjectsState } from '../types';
+import { Chat, Project, ProjectsState } from '../types';
 
 export const fetchProjects = createAsyncThunk(
   'projects/fetchProjects',

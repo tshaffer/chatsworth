@@ -7,7 +7,6 @@ import {
   exportChat,
   getChatEntries,
   getVersion,
-  // markdownImporterEndpoint,
   moveChatEntry,
   moveChatToProject,
   patchChatEntry,
@@ -44,8 +43,6 @@ export const createRoutes = (app: express.Application) => {
   app.post('/api/v1/semantic-search', validate(SemanticSearchBodySchema, 'body'), semanticSearch);
 
   app.post('/api/v1/ask-chatgpt', askChatGptHandler);
-
-  // app.post('/api/v1/importMarkdown', markdownImporterEndpoint);
 
   app.post('/api/v1/projects', createProject);
   app.post('/api/v1/projects/:projectId/reorderChats', reorderChats);
