@@ -85,14 +85,6 @@ const initialState: ProjectsState = {
   selectedChatId: null,
 };
 
-function findProjectAndChatById(state: ProjectsState, chatId: string) {
-  for (const project of state.projectList) {
-    const chat = project.chats.find(c => c.id === chatId);
-    if (chat) return { projectId: project.id, chat };
-  }
-  return undefined;
-}
-
 const projectsSlice = createSlice({
   name: 'projects',
   initialState,

@@ -2,7 +2,6 @@
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '../redux/store';
 import {
-  appendParsedMarkdown,
   deleteProject,
   moveChatToProject,
   renameChat,
@@ -39,7 +38,6 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ChatContextMenu from './ChatContextMenu';
 import CreateProjectDialog from './NewProjectDialog';
 import SelectProjectDialog from './SelectProjectDialog';
-import ImportFromDriveDialog from './ImportFromDriveDialog';
 import ConfirmDeleteProjectDialog from './ConfirmDeleteDialog';
 
 import { makeSelectFilteredProjects } from '../redux/selectors/searchSelectors';
@@ -87,7 +85,6 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
     total: number;
   } | null>(null);
   const [newProjectDialogOpen, setNewProjectDialogOpen] = useState(false);
-  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [chatToMove, setChatToMove] = useState<{ chatId: string; projectId: string } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -124,12 +121,6 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
   const isSemanticProject = (p: SemanticSearchResultProject | Project): p is SemanticSearchResultProject =>
     'projectId' in p;
 
-  const getProjectId = (p: SemanticSearchResultProject | Project): string =>
-    isSemanticProject(p) ? p.projectId : p.id;
-
-  const getProjectName = (p: SemanticSearchResultProject | Project): string =>
-    isSemanticProject(p) ? p.projectName : p.name;
-
   const isSemanticChat = (chat: any): chat is { chatId: string; chatTitle: string } =>
     'chatId' in chat && 'chatTitle' in chat;
 
@@ -137,9 +128,6 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
     <Box p={2}>
       <Button variant="contained" fullWidth sx={{ mb: 1 }} onClick={() => setNewProjectDialogOpen(true)}>
         + New Project
-      </Button>
-      <Button variant="outlined" fullWidth sx={{ mb: 2 }} onClick={() => setImportDialogOpen(true)}>
-        Import Markdown
       </Button>
 
       {projects.length === 0 ? (
@@ -330,18 +318,6 @@ const ProjectList: React.FC<ProjectListProps> = ({ searchQuery, semanticResults 
           />
         )
       }
-
-      <ImportFromDriveDialog
-        open={importDialogOpen}
-        onClose={() => setImportDialogOpen(false)}
-        existingProjects={projects.map((p) => ({
-          id: getProjectId(p),
-          name: getProjectName(p),
-        }))}
-        onAppendParsedMarkdown={(parsed) => {
-          dispatch(appendParsedMarkdown(parsed));
-        }}
-      />
 
       <CreateProjectDialog open={newProjectDialogOpen} onClose={() => setNewProjectDialogOpen(false)} />
 
