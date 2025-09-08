@@ -36,7 +36,6 @@ dotenv.config({
 
 import fs from 'fs/promises';
 import path from 'path';
-import crypto from 'crypto';
 import mongoose from 'mongoose';
 
 const MONGO_URI = process.env.MONGO_URI;
@@ -47,6 +46,7 @@ if (!MONGO_URI) {
 
 import { ProjectModel } from '../models/Project';
 import { ChatEntryModel } from '../models/ChatEntry';
+import { entryFingerprint } from './fingerprint';
 
 /* ============================ Pairing Config ============================ */
 
@@ -302,7 +302,7 @@ function pairIntoEntries(
       assistantsForFreshness.forEach(pushT);
 
       const srcDate = times.length ? toDateFromSeconds(Math.max(...times)) : undefined;
-      const fp = fingerprintEntry({
+      const fp = entryFingerprint({
         title: entryTitle,
         promptSummary,
         response,
@@ -452,25 +452,6 @@ function extractText(msg?: ExportMessage | null): string {
 function firstLine(s: string): string {
   return (s ?? '').split(/\r?\n/)[0]?.trim() ?? '';
 }
-function fingerprintEntry(input: {
-  title?: string;
-  promptSummary?: string;
-  response?: string;
-  position: number;
-  chatId: string;
-  projectId: string;
-}): string {
-  const norm = [
-    input.title ?? '',
-    input.promptSummary ?? '',
-    input.response ?? '',
-    String(input.position),
-    input.chatId,
-    input.projectId,
-  ].join('|');
-  return crypto.createHash('sha256').update(norm).digest('hex');
-}
-
 /* ============================ Utility ============================ */
 
 function chunk<T>(arr: T[], size = 1000): T[][] {
