@@ -36,8 +36,10 @@ dotenv.config({
 
 import fs from 'fs/promises';
 import path from 'path';
-import crypto from 'crypto';
 import mongoose from 'mongoose';
+import { entryFingerprint } from './fingerprint';
+import type { UpdateQuery } from 'mongoose';
+import type { ChatEntryDoc } from '../models/ChatEntry';
 
 const MONGO_URI = process.env.MONGO_URI;
 if (!MONGO_URI) {
@@ -222,23 +224,13 @@ function pairIntoEntries(
   exportedAt: Date,
   cfg: PairingConfig
 ) {
-  type Upsert = {
+type Upsert = {
+  updateOne: {
     filter: { entryId: string };
-    doc: {
-      entryId: string;
-      projectId: string;
-      chatId: string;
-      position: number;
-      title: string;
-      originalPrompt: string;
-      promptSummary: string;
-      response: string;
-      source: string;
-      sourceUpdatedAt?: Date;
-      exportedAt: Date;
-      fingerprint: string;
-    };
+    update: UpdateQuery<ChatEntryDoc>;
+    upsert: boolean;
   };
+};
 
   const upserts: Upsert[] = [];
   let pos = 0;
@@ -302,33 +294,35 @@ function pairIntoEntries(
       assistantsForFreshness.forEach(pushT);
 
       const srcDate = times.length ? toDateFromSeconds(Math.max(...times)) : undefined;
-      const fp = fingerprintEntry({
+
+      const fp = entryFingerprint({
         title: entryTitle,
         promptSummary,
         response,
-        position: pos,
-        chatId,
-        projectId
+        position: pos,          // same value you persist for this entry
+        chatId,                 // same value you persist
+        projectId,              // same value you persist
       });
 
       upserts.push({
-        filter: { entryId },
-        doc: {
-          entryId,
-          projectId,
-          chatId,
-          position: pos++,
-          title: entryTitle,
-          originalPrompt: prompt,
-          promptSummary,
-          response,
-          source: 'chatgpt-export',
-          sourceUpdatedAt: srcDate,
-          exportedAt,
-          fingerprint: fp,
-        },
+        updateOne: {
+          filter: { entryId },
+          update: {
+            $set: {
+              title: entryTitle,
+              originalPrompt: prompt,
+              promptSummary,
+              response,
+              source: 'chatgpt-export',
+              sourceUpdatedAt: srcDate,
+              exportedAt,
+              fingerprint: fp,  // <-- add the fingerprint
+            },
+          },
+          upsert: true,
+        }
       });
-    };
+    }
 
     if (assistants.length === 0) {
       if (cfg.keepEmptyAssistant) mk(user.nodeId, '' + (cfg.includeToolInResponse ? toolAppendix : ''), []);
@@ -451,24 +445,6 @@ function extractText(msg?: ExportMessage | null): string {
 }
 function firstLine(s: string): string {
   return (s ?? '').split(/\r?\n/)[0]?.trim() ?? '';
-}
-function fingerprintEntry(input: {
-  title?: string;
-  promptSummary?: string;
-  response?: string;
-  position: number;
-  chatId: string;
-  projectId: string;
-}): string {
-  const norm = [
-    input.title ?? '',
-    input.promptSummary ?? '',
-    input.response ?? '',
-    String(input.position),
-    input.chatId,
-    input.projectId,
-  ].join('|');
-  return crypto.createHash('sha256').update(norm).digest('hex');
 }
 
 /* ============================ Utility ============================ */
