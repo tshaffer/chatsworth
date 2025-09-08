@@ -23,6 +23,8 @@ import {
   type ISOString,
   type SyncSummary,
 } from './syncCore';
+import { entryFingerprint } from './fingerprint';
+import { ChatEntryModel } from '../models';
 
 /* ────────────────────────────────────────────────────────────
    CLI args
@@ -414,6 +416,35 @@ function flatten(convs: Conversation[]): ExportPayload {
   const payload = flatten(conversations);
   const summary: SyncSummary = await runBidirectionalSync(payload, { dryRun, logDiffs });
 
+  // Persist fingerprints for all non-deleted entries in this payload
+  const bulk = payload.entries
+    .filter(e => !e.deleted)
+    .map(e => ({
+      updateOne: {
+        filter: { entryId: e.entryId },
+        update: {
+          $set: {
+            fingerprint: entryFingerprint({
+              title: e.title,
+              promptSummary: e.promptSummary,
+              response: e.response,
+              position: e.position,
+              chatId: e.chatId,
+              projectId: e.projectId,
+            })
+          }
+        },
+        upsert: false,
+      }
+    }));
+
+  if (bulk.length) {
+    try {
+      await ChatEntryModel.bulkWrite(bulk, { ordered: false });
+    } catch (err) {
+      console.error('Failed to stamp fingerprints after sync:', err);
+    }
+  }
   console.log('=== Sync Summary ===');
   console.log(JSON.stringify(summary, null, 2));
 
