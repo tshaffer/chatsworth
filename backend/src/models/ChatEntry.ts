@@ -37,8 +37,10 @@ const ChatEntrySchema = new Schema<ChatEntryDoc>(
     response: String,
     source: { type: String, default: 'chatgpt-export' },
     sourceUpdatedAt: Date,
-    fingerprint: String,
+    fingerprint: { type: String, index: true },
     exportedAt: Date,
+    embeddingFingerprint: { type: String, index: true },
+    embeddingUpdatedAt: Date,
     embedding: {
       type: [Number],
       default: undefined,
@@ -52,8 +54,10 @@ const ChatEntrySchema = new Schema<ChatEntryDoc>(
 );
 
 // Helpful indexes
+ChatEntrySchema.index({ projectId: 1, chatId: 1, position: 1 });
 ChatEntrySchema.index({ entryId: 1 }, { unique: true });
 ChatEntrySchema.index({ chatId: 1, position: 1 }, { unique: true }); // still useful for ordering
 ChatEntrySchema.index({ chatId: 1, updatedAt: -1 });
+ChatEntrySchema.index({ title: 'text', promptSummary: 'text', response: 'text' });
 
 export const ChatEntryModel = model<ChatEntryDoc>('ChatEntry', ChatEntrySchema);
