@@ -14,7 +14,8 @@ import { once } from 'events';
  * ---------
  * Option A (Mongo): pulls vector IDs from your MongoDB collection and field.
  *    npx ts-node src/scripts/backup-pinecone.ts --from=mongo --mongoCollection=chatentries --idField=_id
- *
+ ***** change _id to entryId
+ 
  * Option B (File): reads vector IDs (one per line) from a text file.
  *    ids.txt contains one ID per line
  *    npx ts-node src/scripts/backup-pinecone.ts --from=file --ids=./ids.txt

@@ -34,7 +34,7 @@
       ],
       "args": [
         "backend/src/scripts/syncBidirectional.fromConversations.ts",
-        "/Users/tedshaffer/Documents/Projects/chatgpt-export-parser/data/chatGPTExport-08-25-25-0/conversations-with-projects.json",
+        "/Users/tedshaffer/Documents/Projects/chatgpt-export-parser/data/chatGPTExport-09-08-25-0/conversations-with-projects.json",
         "--dryRun",
         "--logDiffs"
       ],
@@ -55,7 +55,7 @@
       ],
       "args": [
         "backend/src/scripts/syncBidirectional.fromConversations.ts",
-        "/Users/tedshaffer/Documents/Projects/chatgpt-export-parser/data/chatGPTExport-08-25-25-0/conversations-with-projects.json",
+        "/Users/tedshaffer/Documents/Projects/chatgpt-export-parser/data/chatGPTExport-09-08-25-0/conversations-with-projects.json",
         "--logDiffs"
       ],
       "console": "integratedTerminal",

@@ -1,4 +1,10 @@
 // scripts/embedMissingEntries.ts
+
+/*
+  cd /Users/tedshaffer/Documents/Projects/chatsworthbackend
+  npx ts-node -r dotenv/config src/scripts/embedMissingEntries.ts
+*/
+
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 dotenv.config();
@@ -31,9 +37,9 @@ async function main() {
       const embedding = await getEmbedding(text);
       entry.embedding = embedding;
       await entry.save();
-      console.log(`Embedded entry ${entry._id}`);
+      console.log(`Embedded entry ${entry.entryId}`);
     } catch (err) {
-      console.error(`❌ Failed to embed ${entry._id}:`, err);
+      console.error(`❌ Failed to embed ${entry.entryId}:`, err);
     }
   }
 
