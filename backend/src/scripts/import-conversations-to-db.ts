@@ -38,6 +38,9 @@ import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
+import { entryFingerprint } from './fingerprint';
+import type { UpdateQuery } from 'mongoose';
+import type { ChatEntryDoc } from '../models/ChatEntry';
 
 const MONGO_URI = process.env.MONGO_URI;
 if (!MONGO_URI) {
@@ -290,7 +293,7 @@ function pairIntoEntries(
       : '';
 
     // helper to compute sourceUpdatedAt and push an upsert
-    const mk = (entryId: string, response: string, assistantsForFreshness: FlatMsg[]) => {
+    const mk = async (entryId: string, response: string, assistantsForFreshness: FlatMsg[]) => {
       const times: number[] = [];
       const pushT = (f?: FlatMsg) => {
         if (!f) return;
@@ -302,7 +305,7 @@ function pairIntoEntries(
       assistantsForFreshness.forEach(pushT);
 
       const srcDate = times.length ? toDateFromSeconds(Math.max(...times)) : undefined;
-      const fp = fingerprintEntry({
+      const fp = entryFingerprint({
         title: entryTitle,
         promptSummary,
         response,
@@ -310,6 +313,20 @@ function pairIntoEntries(
         chatId,
         projectId
       });
+
+      const updateDoc: UpdateQuery<ChatEntryDoc> = {
+        $set: {
+          title: entryTitle,
+          originalPrompt: prompt,
+          promptSummary,
+          response,
+          source: 'chatgpt-export',
+          sourceUpdatedAt: srcDate,
+          exportedAt,
+          fingerprint: fp, // <-- persist fingerprint
+        },
+      };
+      await ChatEntryModel.updateOne({ entryId }, updateDoc, { upsert: true });
 
       upserts.push({
         filter: { entryId },
@@ -451,24 +468,6 @@ function extractText(msg?: ExportMessage | null): string {
 }
 function firstLine(s: string): string {
   return (s ?? '').split(/\r?\n/)[0]?.trim() ?? '';
-}
-function fingerprintEntry(input: {
-  title?: string;
-  promptSummary?: string;
-  response?: string;
-  position: number;
-  chatId: string;
-  projectId: string;
-}): string {
-  const norm = [
-    input.title ?? '',
-    input.promptSummary ?? '',
-    input.response ?? '',
-    String(input.position),
-    input.chatId,
-    input.projectId,
-  ].join('|');
-  return crypto.createHash('sha256').update(norm).digest('hex');
 }
 
 /* ============================ Utility ============================ */
