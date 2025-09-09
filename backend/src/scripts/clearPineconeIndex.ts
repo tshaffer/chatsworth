@@ -1,4 +1,6 @@
 // scripts/clearPineconeIndex.ts
+//    npx ts-node src/scripts/clearPineconeIndex.ts
+
 import 'dotenv/config';
 import readline from 'readline';
 import { Pinecone } from '@pinecone-database/pinecone';
