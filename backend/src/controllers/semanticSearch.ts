@@ -10,7 +10,7 @@ const NAMESPACE = process.env.PINECONE_NAMESPACE || undefined;
 const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL || 'text-embedding-3-small';
 
 type EntryDoc = {
-  _id: string;
+  entryId: string;
   projectId: string;
   chatId: string;
   originalPrompt: string;
@@ -99,12 +99,12 @@ export async function semanticSearch(
     // 1) Fetch the full entry docs for all matched entryIds
     const entryIds = Array.from(new Set(flat.map((h) => h.entryId)));
     const entries = (await ChatEntryModel.find(
-      { _id: { $in: entryIds } },
-      { _id: 1, projectId: 1, chatId: 1, originalPrompt: 1, promptSummary: 1, response: 1 }
+      { entryId: { $in: entryIds } },
+      { entryId: 1, projectId: 1, chatId: 1, originalPrompt: 1, promptSummary: 1, response: 1 }
     ).lean()) as unknown as EntryDoc[];
 
     const entryById = new Map<string, EntryDoc>(
-      entries.map((e: EntryDoc) => [String(e._id), e])
+      entries.map((e: EntryDoc) => [String(e.entryId), e])
     );
 
     // 2) Collect projectIds/chatIds to resolve names/titles
@@ -127,7 +127,7 @@ export async function semanticSearch(
     }
 
     type TempEntry = {
-      _id: string;
+      entryId: string;
       chatId: string;
       projectId: string;
       originalPrompt: string;
@@ -174,7 +174,7 @@ export async function semanticSearch(
       }
 
       chat.entries.push({
-        _id: String(e._id),
+        entryId: String(e.entryId),
         chatId: e.chatId,
         projectId: e.projectId,
         originalPrompt: e.originalPrompt ?? '',
