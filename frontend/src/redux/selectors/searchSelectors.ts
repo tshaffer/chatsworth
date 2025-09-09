@@ -48,7 +48,7 @@ export const makeSelectFilteredProjects = () =>
           chats: p.chats.map((c) => ({
             chatId: c.chatId,
             chatTitle: c.chatTitle,
-            matchingEntryIds: c.entries.map((e) => e._id),
+            matchingEntryIds: c.entries.map((e) => e.entryId),
           })),
         }));
       }

@@ -82,7 +82,7 @@ const AppShell: React.FC = () => {
 
   // Normalize any entry (ChatEntry or SemanticSearchResultEntry) into a SemanticSearchResultEntry
   const toSemanticEntry = (e: ChatEntry | SemanticSearchResultEntry, fallbackKey: string): SemanticSearchResultEntry => ({
-    _id: (e as any)._id ?? (e as any).id ?? fallbackKey,
+    entryId: (e as any)._id ?? (e as any).id ?? fallbackKey,
     chatId: (e as any).chatId,
     projectId: (e as any).projectId,
     originalPrompt: (e as any).originalPrompt ?? '',

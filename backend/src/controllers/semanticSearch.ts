@@ -110,8 +110,8 @@ export async function semanticSearch(
     // 2) Collect projectIds/chatIds to resolve names/titles
     const projectIds = Array.from(new Set(flat.map((h) => h.projectId)));
     const projects = await ProjectModel.find(
-      { id: { $in: projectIds } },
-      { id: 1, name: 1, chats: 1 }
+      { projectId: { $in: projectIds } },
+      { projectId: 1, name: 1, chats: 1 }
     ).lean();
 
     const projectNameById = new Map<string, string>();

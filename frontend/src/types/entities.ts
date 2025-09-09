@@ -48,7 +48,7 @@ export interface SearchResult {
 export type SearchResults = SearchResult[];
 
 export interface SemanticSearchResultEntry {
-  _id: string;
+  entryId: string;
   chatId: string;
   projectId: string;
   originalPrompt: string;
