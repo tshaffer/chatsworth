@@ -8,20 +8,22 @@
 
 import dotenv from 'dotenv';
 dotenv.config();
+
+// src/scripts/upsertDenseVectors.ts
+//    npx ts-node -r dotenv/config src/scripts/upsertDenseVectors.ts
+
 import mongoose from 'mongoose';
 import fs from 'fs';
 import { Pinecone, IndexStatsDescription } from '@pinecone-database/pinecone';
 import { ChatEntryModel } from '../models';
 import { getEmbedding } from '../utilities';
+import { encoding_for_model } from 'tiktoken';
 
 // ---- Tunables ----
-const CHUNK_STRATEGY: 'chunk' | 'truncate' = 'chunk'; // set to 'truncate' if you prefer
+const CHUNK_STRATEGY: 'chunk' | 'truncate' = 'chunk'; // 'chunk' strongly recommended
+const MODEL_NAME = 'text-embedding-3-small';          // keep in sync with getEmbedding()
 const MAX_MODEL_TOKENS = 8192;
-const SAFETY_MARGIN_TOKENS = 1600; // headroom for safety
-const MAX_TOKENS_PER_CHUNK = Math.max(1024, MAX_MODEL_TOKENS - SAFETY_MARGIN_TOKENS);
-// Conservative token estimate
-const CHARS_PER_TOKEN = 3;
-const MAX_CHARS_PER_CHUNK = MAX_TOKENS_PER_CHUNK * CHARS_PER_TOKEN;
+const TOKEN_BUDGET = 8000;                            // hard cap per call (safely < 8192)
 // Pinecone upsert batch size
 const UPSERT_BATCH = 100;
 // Log file for truncations (only used when truncating)
@@ -29,107 +31,158 @@ const TRUNC_LOG = '/Users/tedshaffer/Documents/tmpFiles/chatsworth/pinecone/trun
 
 // -------------------
 
+const enc = encoding_for_model(MODEL_NAME);
+const textDecoder = new TextDecoder('utf-8');
+
+function decodeTokens(tokens: Uint32Array): string {
+  const bytes = enc.decode(tokens);
+  return textDecoder.decode(bytes);
+}
+
 function ensureDirFor(filePath: string) {
   const dir = filePath.replace(/\/[^/]+$/, '');
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
 }
 
-function estimateTokensByChars(s: string): number {
-  return Math.ceil(s.length / CHARS_PER_TOKEN);
+// Token-aware slice to <= TOKEN_BUDGET
+function sliceToTokenBudget(text: string, budget = TOKEN_BUDGET): string {
+  const toks = enc.encode(text); // Uint32Array
+  if (toks.length <= budget) return text;
+  const trimmed = toks.subarray(0, budget);
+  return decodeTokens(trimmed);
 }
 
-function chunkText(text: string): string[] {
-  if (text.length <= MAX_CHARS_PER_CHUNK) return [text];
+// Build chunks that are each <= TOKEN_BUDGET (favoring paragraph/line boundaries)
+function chunkTextTokenAware(text: string, budget = TOKEN_BUDGET): string[] {
+  // Quick pass: if already under budget, return as single chunk
+  if (enc.encode(text).length <= budget) return [text];
 
-  // Split by paragraph blocks first
-  const parts = text.split(/\n{2,}/);
   const chunks: string[] = [];
-  let current = '';
+  const paras = text.split(/\n{2,}/); // paragraph-ish blocks
 
-  const pushCurrent = () => {
-    if (current) {
-      chunks.push(current);
-      current = '';
+  let current = '';
+  let currentTokens = enc.encode(''); // empty Uint32Array
+
+  const appendWithCheck = (segment: string) => {
+    const segTokens = enc.encode(current ? `\n\n${segment}` : segment);
+    if (currentTokens.length + segTokens.length <= budget) {
+      // safe to append
+      current += (current ? `\n\n${segment}` : segment);
+      // concat token arrays
+      const combined = new Uint32Array(currentTokens.length + segTokens.length);
+      combined.set(currentTokens, 0);
+      combined.set(segTokens, currentTokens.length);
+      currentTokens = combined;
+      return true;
     }
+    return false;
   };
 
-  for (const part of parts) {
-    const tentative = current ? `${current}\n\n${part}` : part;
+  const flushCurrent = () => {
+    if (!current) return;
+    chunks.push(current);
+    current = '';
+    currentTokens = enc.encode('');
+  };
 
-    if (tentative.length <= MAX_CHARS_PER_CHUNK) {
-      current = tentative;
-      continue;
-    }
+  for (const para of paras) {
+    if (appendWithCheck(para)) continue;
 
-    // If a single paragraph is too large, split by lines
-    if (!current) {
-      const lines = part.split(/\n/);
-      let block = '';
-      for (const line of lines) {
-        const t2 = block ? `${block}\n${line}` : line;
-        if (t2.length <= MAX_CHARS_PER_CHUNK) {
-          block = t2;
-        } else {
-          if (block) chunks.push(block);
-          if (line.length > MAX_CHARS_PER_CHUNK) {
-            // Pathological long line: hard slice
-            for (let i = 0; i < line.length; i += MAX_CHARS_PER_CHUNK) {
-              chunks.push(line.slice(i, i + MAX_CHARS_PER_CHUNK));
-            }
-            block = '';
-          } else {
-            block = line;
+    // If a whole paragraph doesn't fit, try line-by-line
+    const lines = para.split(/\n/);
+    let builtPara = '';
+    let builtParaTokens = enc.encode('');
+
+    const appendLine = (line: string) => {
+      const piece = builtPara ? `\n${line}` : line;
+      const pieceTokens = enc.encode(piece);
+      if (currentTokens.length + builtParaTokens.length + pieceTokens.length <= budget) {
+        // add to builtPara
+        builtPara += piece;
+        const newBuilt = new Uint32Array(builtParaTokens.length + pieceTokens.length);
+        newBuilt.set(builtParaTokens, 0);
+        newBuilt.set(pieceTokens, builtParaTokens.length);
+        builtParaTokens = newBuilt;
+        return true;
+      }
+      return false;
+    };
+
+    for (const line of lines) {
+      if (appendLine(line)) continue;
+
+      // If even a single line doesn't fit, flush what we have first
+      if (builtPara) {
+        appendWithCheck(builtPara) || (() => { flushCurrent(); appendWithCheck(builtPara); })();
+        builtPara = '';
+        builtParaTokens = enc.encode('');
+      }
+
+      // Now the single line still may be too big—slice by tokens
+      const lineTokens = enc.encode(line);
+      if (lineTokens.length > budget) {
+        // Hard-slice the line into multiple token chunks
+        for (let offset = 0; offset < lineTokens.length; ) {
+          const next = lineTokens.subarray(offset, Math.min(offset + budget, lineTokens.length));
+          const piece = decodeTokens(next);
+          if (!appendWithCheck(piece)) {
+            flushCurrent();
+            // Should fit now since piece <= budget
+            appendWithCheck(piece);
           }
+          offset += next.length;
+        }
+      } else {
+        // line fits alone; either add it now (with newline) or flush + add
+        if (!appendWithCheck(line)) {
+          flushCurrent();
+          appendWithCheck(line);
         }
       }
-      if (block) chunks.push(block);
-    } else {
-      // finalize current then re-handle this part fresh
-      pushCurrent();
-      if (part.length <= MAX_CHARS_PER_CHUNK) {
-        current = part;
-      } else {
-        const sub = chunkText(part);
-        for (const s of sub) chunks.push(s);
+    }
+
+    if (builtPara) {
+      if (!appendWithCheck(builtPara)) {
+        flushCurrent();
+        appendWithCheck(builtPara);
       }
+      builtPara = '';
+      builtParaTokens = enc.encode('');
     }
   }
-  pushCurrent();
-  return chunks;
+
+  flushCurrent();
+
+  // Safety: in pathological cases, ensure every chunk ≤ budget
+  return chunks.map((c) => sliceToTokenBudget(c, budget));
 }
 
 async function connectDB() {
   const uri = process.env.MONGO_URI;
   if (!uri) throw new Error('Missing MONGO_URI');
-  // Modern Mongoose: no need for useNewUrlParser/useUnifiedTopology flags
+  // Modern Mongoose connect (deprecation warnings come from your URI/options; consider switching to mongodb+srv)
   await mongoose.connect(uri as string);
   console.log('MongoDB connected.');
 }
 
-// Add this helper
+// Pinecone upsert compatibility wrapper (handles both SDK eras)
 async function upsertCompat(index: any, vectors: any[], namespace: string) {
-  // Prefer namespaced upsert if available (newer SDKs)
   if (typeof index.namespace === 'function' && namespace) {
     const ns = index.namespace(namespace);
     if (ns && typeof ns.upsert === 'function') {
-      return await ns.upsert(vectors); // vectors-only form under a namespace
+      return await ns.upsert(vectors); // vectors[] under a namespace (new SDK)
     }
   }
-
-  // Try new SDK object form
   if (typeof index.upsert === 'function') {
     try {
-      return await (index as any).upsert({ vectors, namespace });
+      return await (index as any).upsert({ vectors, namespace }); // new SDK object form
     } catch {
-      // fall through to legacy
+      // fall through
     }
+    return await (index as any).upsert(vectors); // legacy vectors-only form
   }
-
-  // Legacy vectors-only form
-  if (typeof index.upsert === 'function') {
-    return await (index as any).upsert(vectors);
-  }
-
   throw new Error('No compatible Pinecone upsert method found.');
 }
 
@@ -153,47 +206,39 @@ async function upsertChatEntries() {
     const entry: any = entries[i];
     const entryId = String(entry.entryId ?? entry._id);
 
-    let text = [entry.originalPrompt, entry.promptSummary, entry.response]
+    let combined = [entry.originalPrompt, entry.promptSummary, entry.response]
       .filter(Boolean)
       .join('\n');
 
-    // Choose texts per strategy
-    let texts: string[] = [];
+    let chunks: string[];
     if (CHUNK_STRATEGY === 'chunk') {
-      texts = chunkText(text);
+      chunks = chunkTextTokenAware(combined, TOKEN_BUDGET);
     } else {
-      // Truncate
-      if (text.length > MAX_CHARS_PER_CHUNK) {
+      // Hard truncate to budget if not chunking
+      const before = enc.encode(combined).length;
+      if (before > TOKEN_BUDGET) {
+        const afterText = sliceToTokenBudget(combined, TOKEN_BUDGET);
+        const after = enc.encode(afterText).length;
+        // optional log for visibility
         ensureDirFor(TRUNC_LOG);
         fs.appendFileSync(TRUNC_LOG, `${entryId}\n`);
-        console.warn(
-          `⚠️ Truncating entry ${entryId} from ${text.length} to ${MAX_CHARS_PER_CHUNK} characters.`
-        );
-        text = text.slice(0, MAX_CHARS_PER_CHUNK);
+        console.warn(`⚠️ Truncating ${entryId} from ${before} → ${after} tokens.`);
+        combined = afterText;
       }
-      texts = [text];
+      chunks = [combined];
     }
 
-    // Defensive clamp
-    texts = texts.map((t) => (t.length <= MAX_CHARS_PER_CHUNK ? t : t.slice(0, MAX_CHARS_PER_CHUNK)));
-
-    // Stage vectors (embed chunk-by-chunk)
+    // Stage vectors (embed each chunk)
     let staged: Array<{ id: string; values: number[]; metadata?: Record<string, any> }> = [];
 
-    for (let j = 0; j < texts.length; j++) {
-      const t = texts[j];
+    for (let j = 0; j < chunks.length; j++) {
+      const t = chunks[j];
 
-      const estTokens = estimateTokensByChars(t);
-      if (estTokens > MAX_TOKENS_PER_CHUNK) {
-        console.warn(
-          `⚠️ Estimated ${estTokens} tokens (> ${MAX_TOKENS_PER_CHUNK}) for ${entryId}#p${j}. Slicing to ${MAX_CHARS_PER_CHUNK} chars.`
-        );
-      }
-
+      // Compute embedding
       const values = await getEmbedding(t);
 
       staged.push({
-        id: texts.length === 1 ? entryId : `${entryId}#p${j}`,
+        id: chunks.length === 1 ? entryId : `${entryId}#p${j}`,
         values,
         metadata: {
           entryId,
@@ -202,7 +247,7 @@ async function upsertChatEntries() {
           position: entry.position,
           title: entry.title ?? null,
           chunkIndex: j,
-          chunkCount: texts.length,
+          chunkCount: chunks.length,
         },
       });
 
@@ -221,13 +266,11 @@ async function upsertChatEntries() {
       }
     }
 
-    // Flush remaining for this entry
     if (staged.length) {
       await upsertCompat(index, staged, namespace);
       totalVectors += staged.length;
     }
 
-    // Occasional progress
     if ((i + 1) % 100 === 0 || i === entries.length - 1) {
       console.log(`✅ Processed ${i + 1} / ${entries.length} entries (total vectors so far: ${totalVectors})`);
     }
@@ -238,7 +281,6 @@ async function upsertChatEntries() {
 
 async function main() {
   await upsertChatEntries();
-  process.exit(0);
 }
 
 connectDB()
@@ -246,7 +288,8 @@ connectDB()
     console.log('Database connected successfully.');
     return main();
   })
+  .then(() => process.exit(0))
   .catch((err) => {
-    console.error('❌ Error connecting to DB:', err);
+    console.error('❌ Error:', err);
     process.exit(1);
   });
