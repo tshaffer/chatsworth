@@ -45,24 +45,28 @@ async function upsertChatEntries() {
 
         if (text.length > MAX_CHARS) {
           // Optionally log to a file for later review
-          fs.appendFileSync('/Users/tedshaffer/Documents/tmpFiles/chatsworth/pinecone/truncated_entries.log', `${entry._id}\n`);
+          fs.appendFileSync('/Users/tedshaffer/Documents/tmpFiles/chatsworth/pinecone/truncated_entries.log', `${entry.entryId}\n`);
         }
 
         // Truncate to max length
         if (text.length > MAX_CHARS) {
-          console.warn(`⚠️ Truncating entry ${entry._id.toString()} from ${text.length} to ${MAX_CHARS} characters.`);
+          console.warn(`⚠️ Truncating entry ${entry.entryId.toString()} from ${text.length} to ${MAX_CHARS} characters.`);
           text = text.slice(0, MAX_CHARS);
         }
 
         const values = await getEmbedding(text);
 
         return {
-          id: entry._id.toString(),
+          id: entry.entryId.toString(),
           values,
           metadata: {
-            chatId: entry.chatId,
+            entryId: entry.entryId ?? String(entry._id),
             projectId: entry.projectId,
-          },
+            chatId: entry.chatId,
+            position: entry.position,
+            title: entry.title ?? null,
+            // optionally small, non-PII fields useful for debug/search
+          }
         };
       })
     );
