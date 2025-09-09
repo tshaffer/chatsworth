@@ -46,6 +46,30 @@ function ensureDirFor(filePath: string) {
   }
 }
 
+// Add near the top with your helpers
+function buildMetadata(entry: any, chunkIndex: number, chunkCount: number) {
+  const md: Record<string, string | number | boolean | string[]> = {
+    entryId: String(entry.entryId ?? entry._id),
+    projectId: entry.projectId ? String(entry.projectId) : undefined as unknown as never,
+    chatId: entry.chatId ? String(entry.chatId) : undefined as unknown as never,
+    position: typeof entry.position === 'number' ? entry.position : Number(entry.position ?? 0),
+    chunkIndex,
+    chunkCount,
+  };
+
+  // Only include title if it's a non-empty string
+  if (entry.title && String(entry.title).trim().length > 0) {
+    md.title = String(entry.title);
+  }
+
+  // Drop any undefined/null fields (Pinecone disallows them)
+  for (const k of Object.keys(md)) {
+    const v = md[k as keyof typeof md];
+    if (v === undefined || v === null) delete md[k];
+  }
+  return md;
+}
+
 // Token-aware slice to <= TOKEN_BUDGET
 function sliceToTokenBudget(text: string, budget = TOKEN_BUDGET): string {
   const toks = enc.encode(text); // Uint32Array
@@ -124,7 +148,7 @@ function chunkTextTokenAware(text: string, budget = TOKEN_BUDGET): string[] {
       const lineTokens = enc.encode(line);
       if (lineTokens.length > budget) {
         // Hard-slice the line into multiple token chunks
-        for (let offset = 0; offset < lineTokens.length; ) {
+        for (let offset = 0; offset < lineTokens.length;) {
           const next = lineTokens.subarray(offset, Math.min(offset + budget, lineTokens.length));
           const piece = decodeTokens(next);
           if (!appendWithCheck(piece)) {
@@ -240,17 +264,9 @@ async function upsertChatEntries() {
       staged.push({
         id: chunks.length === 1 ? entryId : `${entryId}#p${j}`,
         values,
-        metadata: {
-          entryId,
-          projectId: entry.projectId,
-          chatId: entry.chatId,
-          position: entry.position,
-          title: entry.title ?? null,
-          chunkIndex: j,
-          chunkCount: chunks.length,
-        },
+        metadata: buildMetadata(entry, j, chunks.length),
       });
-
+      
       // Flush in batches
       if (staged.length >= UPSERT_BATCH) {
         await upsertCompat(index, staged, namespace);
