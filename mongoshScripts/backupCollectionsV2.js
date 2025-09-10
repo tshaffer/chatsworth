@@ -5,7 +5,7 @@ const collections = [
   "chatentries",
 ];
 
-const outputDir = "/Users/tedshaffer/Documents/MongoDBBackups/chatsworth/backup-v2-09-08-0";
+const outputDir = "/Users/tedshaffer/Documents/MongoDBBackups/chatsworth/backup-v2-09-10-0";
 
 const fs = require("fs");
 
