@@ -24,7 +24,7 @@ import {
   type SyncSummary,
 } from './syncCore';
 import { entryFingerprint } from './fingerprint';
-import { ChatEntryModel } from '../models';
+import { ChatEntryModel, TombstoneModel } from '../models'; // ⬅️ ensure TombstoneModel is exported
 
 /* ────────────────────────────────────────────────────────────
    CLI args
@@ -64,7 +64,7 @@ const CFG: PairingConfig = {
   assistantPolicy: 'keep-latest',
   userDraftPolicy: 'keep-each',
   includeSystemInPrompt: false,
-  includeToolInResponse: true, // On by default here; adjust as you like
+  includeToolInResponse: true,
   keepEmptyAssistant: true,
   titlePolicy: 'prefer-conv-title',
 };
@@ -401,6 +401,110 @@ function flatten(convs: Conversation[]): ExportPayload {
 }
 
 /* ────────────────────────────────────────────────────────────
+   Deletion guards (tombstones + soft-deletes in DB)
+   ──────────────────────────────────────────────────────────── */
+
+function chatKey(projectId: string, chatId: string) {
+  return `${projectId}::${chatId}`;
+}
+function entryKey(projectId: string, chatId: string, entryId: string) {
+  return `${projectId}::${chatId}::${entryId}`;
+}
+
+async function applyDeletionGuards(
+  payload: ExportPayload,
+  { logSkips }: { logSkips: boolean }
+): Promise<void> {
+  // 1) Load tombstones
+  const tombs = await TombstoneModel.find({}).lean();
+  const deadProjectIds = new Set<string>();
+  const deadChatKeys = new Set<string>();
+  const deadEntryKeys = new Set<string>();
+
+  for (const t of tombs as any[]) {
+    if (t.kind === 'project' && t.projectId) deadProjectIds.add(t.projectId);
+    else if (t.kind === 'chat' && t.projectId && t.chatId) deadChatKeys.add(chatKey(t.projectId, t.chatId));
+    else if (t.kind === 'entry' && t.projectId && t.chatId && t.entryId) {
+      deadEntryKeys.add(entryKey(t.projectId, t.chatId, t.entryId));
+    }
+  }
+
+  // 2) Respect existing soft-deleted entries in DB even without tombstones
+  const softDeletedEntries = await ChatEntryModel.find(
+    { deletedAt: { $exists: true, $ne: null } },
+    { entryId: 1, projectId: 1, chatId: 1, _id: 0 }
+  ).lean();
+
+  for (const e of softDeletedEntries as any[]) {
+    if (e.projectId && e.chatId && e.entryId) {
+      deadEntryKeys.add(entryKey(e.projectId, e.chatId, e.entryId));
+    }
+  }
+
+  // Index for titles (for nicer logs)
+  const chatTitleByKey = new Map<string, string>();
+  for (const c of payload.chats) chatTitleByKey.set(chatKey(c.projectId, c.id), c.title ?? '');
+
+  // 3) Filter payload with logs
+  const originalCounts = {
+    projects: payload.projects.length,
+    chats: payload.chats.length,
+    entries: payload.entries.length,
+  };
+
+  payload.projects = payload.projects.filter((p) => {
+    const isDead = deadProjectIds.has(p.id);
+    if (isDead && logSkips) {
+      console.log(`[PROJECT][SKIP_TOMBSTONE] ${p.name} (${p.id})`);
+    }
+    return !isDead;
+  });
+
+  payload.chats = payload.chats.filter((c) => {
+    if (deadProjectIds.has(c.projectId)) {
+      if (logSkips) console.log(`[CHAT][SKIP_PARENT_DEAD] ${c.title} (${chatKey(c.projectId, c.id)})`);
+      return false;
+    }
+    const k = chatKey(c.projectId, c.id);
+    const isDead = deadChatKeys.has(k);
+    if (isDead && logSkips) {
+      console.log(`[CHAT][SKIP_TOMBSTONE] ${c.title} (${k})`);
+    }
+    return !isDead;
+  });
+
+  payload.entries = payload.entries.filter((e) => {
+    if (deadProjectIds.has(e.projectId)) {
+      if (logSkips) console.log(`[ENTRY][SKIP_PARENT_PROJECT_DEAD] ${e.entryId} (${e.projectId})`);
+      return false;
+    }
+    const ck = chatKey(e.projectId, e.chatId);
+    if (deadChatKeys.has(ck)) {
+      if (logSkips) console.log(`[ENTRY][SKIP_PARENT_CHAT_DEAD] ${e.entryId} (${ck})`);
+      return false;
+    }
+    const ek = entryKey(e.projectId, e.chatId, e.entryId);
+    const isDead = deadEntryKeys.has(ek);
+    if (isDead && logSkips) {
+      const title = chatTitleByKey.get(ck) ?? '';
+      console.log(`[ENTRY][SKIP_TOMBSTONE] ${e.entryId} (chat="${title}" key=${ek})`);
+    }
+    return !isDead;
+  });
+
+  if (logSkips) {
+    const afterCounts = {
+      projects: payload.projects.length,
+      chats: payload.chats.length,
+      entries: payload.entries.length,
+    };
+    console.log(
+      `[SKIP_SUMMARY] projects ${originalCounts.projects}→${afterCounts.projects}, chats ${originalCounts.chats}→${afterCounts.chats}, entries ${originalCounts.entries}→${afterCounts.entries}`
+    );
+  }
+}
+
+/* ────────────────────────────────────────────────────────────
    MAIN
    ──────────────────────────────────────────────────────────── */
 (async () => {
@@ -414,12 +518,16 @@ function flatten(convs: Conversation[]): ExportPayload {
   }
 
   const payload = flatten(conversations);
+
+  // ⬇️ Enforce DB-source-of-truth for deletions (tombstones + soft-deletes)
+  await applyDeletionGuards(payload, { logSkips: logDiffs });
+
   const summary: SyncSummary = await runBidirectionalSync(payload, { dryRun, logDiffs });
 
-  // Persist fingerprints for all non-deleted entries in this payload
+  // Persist fingerprints for all non-deleted (non-skipped) entries in this payload
   const bulk = payload.entries
-    .filter(e => !e.deleted)
-    .map(e => ({
+    .filter((e) => !e.deleted)
+    .map((e) => ({
       updateOne: {
         filter: { entryId: e.entryId },
         update: {
@@ -431,11 +539,11 @@ function flatten(convs: Conversation[]): ExportPayload {
               position: e.position,
               chatId: e.chatId,
               projectId: e.projectId,
-            })
-          }
+            }),
+          },
         },
         upsert: false,
-      }
+      },
     }));
 
   if (bulk.length) {

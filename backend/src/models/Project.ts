@@ -38,6 +38,7 @@ const ChatSchema = new Schema<ChatSubdoc>(
       localCreatedAt: Date,
       localUpdatedAt: Date,
     },
+    deletedAt: { type: Date, default: null, index: true },
   },
   {
     _id: false,
@@ -52,6 +53,7 @@ const ProjectSchema = new Schema<ProjectDoc>(
     name: { type: String, required: true },
     chats: { type: [ChatSchema], default: [] },
     lastSyncedAt: Date,
+    deletedAt: { type: Date, default: null, index: true },
   },
   { timestamps: true }
 );

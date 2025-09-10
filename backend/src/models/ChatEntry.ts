@@ -47,6 +47,7 @@ const ChatEntrySchema = new Schema<ChatEntryDoc>(
         message: 'embedding must be 1536-dimensional',
       },
     },
+    deletedAt: { type: Date, default: null, index: true },
   },
   { timestamps: true }
 );

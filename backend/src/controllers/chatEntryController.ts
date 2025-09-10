@@ -1,7 +1,7 @@
 // controllers/chatEntryController.ts
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';                       // <-- add this
-import { ChatEntryDoc, ChatEntryModel } from '../models';
+import { ChatEntryDoc, ChatEntryModel, TombstoneModel } from '../models';
 import { toDomainEntry } from '../types/mappers';
 
 // NEW: accept either Mongo _id or string entryId
@@ -61,29 +61,19 @@ export async function patchChatEntry(req: Request, res: Response) {
   return res.json(toDomainEntry(updated));
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // DELETE: by either id
 export const deleteChatEntry = async (req: Request<any>, res: Response) => {
   const { id } = req.params;
+
+  const entry = await ChatEntryModel.findOne({ entryId: id });
+  if (!entry) return res.status(404).json({ error: 'Not found' });
+
+  await TombstoneModel.updateOne(
+    { kind: 'entry', projectId: entry.projectId, chatId: entry.chatId, entryId: entry.entryId },
+    { $setOnInsert: { deletedAt: new Date(), source: 'app' } },
+    { upsert: true }
+  );
+
   await ChatEntryModel.findOneAndDelete(byEitherId(id));
   res.sendStatus(204);
 };
