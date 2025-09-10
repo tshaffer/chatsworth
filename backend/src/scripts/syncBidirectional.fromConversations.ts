@@ -24,7 +24,7 @@ import {
   type SyncSummary,
 } from './syncCore';
 import { entryFingerprint } from './fingerprint';
-import { ChatEntryModel, TombstoneModel } from '../models'; // ⬅️ ensure TombstoneModel is exported
+import { ChatEntryModel, ProjectModel, TombstoneModel } from '../models'; // ⬅️ ensure TombstoneModel is exported
 
 /* ────────────────────────────────────────────────────────────
    CLI args
@@ -415,91 +415,171 @@ async function applyDeletionGuards(
   payload: ExportPayload,
   { logSkips }: { logSkips: boolean }
 ): Promise<void> {
-  // 1) Load tombstones
-  const tombs = await TombstoneModel.find({}).lean();
+  // Dead sets (projects, chats, entries) collected from tombstones + soft-deletes
   const deadProjectIds = new Set<string>();
-  const deadChatKeys = new Set<string>();
-  const deadEntryKeys = new Set<string>();
+  const deadChatKeys   = new Set<string>(); // `${projectId}::${chatId}`
+  const deadEntryKeys  = new Set<string>(); // `${projectId}::${chatId}::${entryId}`
+
+  // 1) Tombstones are authoritative
+  const tombs = await TombstoneModel.find(
+    {},
+    { kind: 1, projectId: 1, chatId: 1, entryId: 1, _id: 0 }
+  ).lean();
 
   for (const t of tombs as any[]) {
-    if (t.kind === 'project' && t.projectId) deadProjectIds.add(t.projectId);
-    else if (t.kind === 'chat' && t.projectId && t.chatId) deadChatKeys.add(chatKey(t.projectId, t.chatId));
-    else if (t.kind === 'entry' && t.projectId && t.chatId && t.entryId) {
-      deadEntryKeys.add(entryKey(t.projectId, t.chatId, t.entryId));
+    if (t.kind === 'project' && t.projectId) {
+      deadProjectIds.add(t.projectId);
+    } else if (t.kind === 'chat' && t.projectId && t.chatId) {
+      deadChatKeys.add(`${t.projectId}::${t.chatId}`);
+    } else if (t.kind === 'entry' && t.projectId && t.chatId && t.entryId) {
+      deadEntryKeys.add(`${t.projectId}::${t.chatId}::${t.entryId}`);
     }
   }
 
-  // 2) Respect existing soft-deleted entries in DB even without tombstones
+  // 2) Respect existing soft-deleted PROJECTS (even if no tombstone)
+  try {
+    const softDeletedProjects = await ProjectModel.find(
+      {
+        $or: [
+          { deletedAt: { $exists: true, $ne: null } },
+          { deleted: true }, // legacy boolean, if present
+        ],
+      },
+      { projectId: 1, id: 1, _id: 0 }
+    ).lean();
+
+    for (const p of softDeletedProjects as any[]) {
+      const pid = p.projectId ?? p.id;
+      if (pid) deadProjectIds.add(pid);
+    }
+  } catch (_) {
+    /* if ProjectModel not available in this build, skip */
+  }
+
+  // 3) Respect existing soft-deleted CHATS embedded in projects
+  //    We only scan projects that have at least one soft-deleted chat.
+  try {
+    const projectsWithDeletedChats = await ProjectModel.find(
+      {
+        chats: {
+          $elemMatch: {
+            $or: [
+              { deletedAt: { $exists: true, $ne: null } },
+              { deleted: true },
+            ],
+          },
+        },
+      },
+      {
+        projectId: 1,
+        id: 1,
+        'chats.chatId': 1,
+        'chats.id': 1,
+        'chats.deletedAt': 1,
+        'chats.deleted': 1,
+        _id: 0,
+      }
+    ).lean();
+
+    for (const p of projectsWithDeletedChats as any[]) {
+      const pid = p.projectId ?? p.id;
+      if (!pid) continue;
+
+      const chats = Array.isArray(p.chats) ? p.chats : [];
+      for (const ch of chats) {
+        const isSoftDeleted = !!ch?.deletedAt || ch?.deleted === true;
+        if (!isSoftDeleted) continue;
+
+        const cid = ch.chatId ?? ch.id;
+        if (cid) deadChatKeys.add(`${pid}::${cid}`);
+      }
+    }
+  } catch (_) {
+    /* if schema differs or no chats field, skip */
+  }
+
+  // 4) Respect existing soft-deleted ENTRIES (even if no tombstone)
   const softDeletedEntries = await ChatEntryModel.find(
-    { deletedAt: { $exists: true, $ne: null } },
+    {
+      $or: [
+        { deletedAt: { $exists: true, $ne: null } },
+        { deleted: true },
+      ],
+    },
     { entryId: 1, projectId: 1, chatId: 1, _id: 0 }
   ).lean();
 
   for (const e of softDeletedEntries as any[]) {
     if (e.projectId && e.chatId && e.entryId) {
-      deadEntryKeys.add(entryKey(e.projectId, e.chatId, e.entryId));
+      deadEntryKeys.add(`${e.projectId}::${e.chatId}::${e.entryId}`);
     }
   }
 
-  // Index for titles (for nicer logs)
+  // Map chat titles for nicer logs
   const chatTitleByKey = new Map<string, string>();
-  for (const c of payload.chats) chatTitleByKey.set(chatKey(c.projectId, c.id), c.title ?? '');
+  for (const c of payload.chats) chatTitleByKey.set(`${c.projectId}::${c.id}`, c.title ?? '');
 
-  // 3) Filter payload with logs
-  const originalCounts = {
+  // Keep some counts for logging
+  const before = {
     projects: payload.projects.length,
     chats: payload.chats.length,
     entries: payload.entries.length,
   };
 
+  // 5) Filter projects
   payload.projects = payload.projects.filter((p) => {
-    const isDead = deadProjectIds.has(p.id);
-    if (isDead && logSkips) {
-      console.log(`[PROJECT][SKIP_TOMBSTONE] ${p.name} (${p.id})`);
+    const dead = deadProjectIds.has(p.id);
+    if (dead && logSkips) {
+      console.log(`[PROJECT][SKIP] ${p.name} (${p.id})`);
     }
-    return !isDead;
+    return !dead;
   });
 
+  // 6) Filter chats (skip if parent project dead OR chat tombstoned/soft-deleted)
   payload.chats = payload.chats.filter((c) => {
     if (deadProjectIds.has(c.projectId)) {
-      if (logSkips) console.log(`[CHAT][SKIP_PARENT_DEAD] ${c.title} (${chatKey(c.projectId, c.id)})`);
+      if (logSkips) console.log(`[CHAT][SKIP_PARENT_DEAD] ${c.title} (${c.projectId}::${c.id})`);
       return false;
     }
-    const k = chatKey(c.projectId, c.id);
-    const isDead = deadChatKeys.has(k);
-    if (isDead && logSkips) {
-      console.log(`[CHAT][SKIP_TOMBSTONE] ${c.title} (${k})`);
+    const k = `${c.projectId}::${c.id}`;
+    const dead = deadChatKeys.has(k);
+    if (dead && logSkips) {
+      console.log(`[CHAT][SKIP] ${c.title} (${k})`);
     }
-    return !isDead;
+    return !dead;
   });
 
+  // 7) Filter entries (skip if parent project/chat dead OR entry tombstoned/soft-deleted)
   payload.entries = payload.entries.filter((e) => {
     if (deadProjectIds.has(e.projectId)) {
       if (logSkips) console.log(`[ENTRY][SKIP_PARENT_PROJECT_DEAD] ${e.entryId} (${e.projectId})`);
       return false;
     }
-    const ck = chatKey(e.projectId, e.chatId);
+    const ck = `${e.projectId}::${e.chatId}`;
     if (deadChatKeys.has(ck)) {
-      if (logSkips) console.log(`[ENTRY][SKIP_PARENT_CHAT_DEAD] ${e.entryId} (${ck})`);
+      if (logSkips) {
+        const title = chatTitleByKey.get(ck) ?? '';
+        console.log(`[ENTRY][SKIP_PARENT_CHAT_DEAD] ${e.entryId} (chat="${title}" key=${ck})`);
+      }
       return false;
     }
-    const ek = entryKey(e.projectId, e.chatId, e.entryId);
-    const isDead = deadEntryKeys.has(ek);
-    if (isDead && logSkips) {
+    const ek = `${e.projectId}::${e.chatId}::${e.entryId}`;
+    const dead = deadEntryKeys.has(ek);
+    if (dead && logSkips) {
       const title = chatTitleByKey.get(ck) ?? '';
-      console.log(`[ENTRY][SKIP_TOMBSTONE] ${e.entryId} (chat="${title}" key=${ek})`);
+      console.log(`[ENTRY][SKIP] ${e.entryId} (chat="${title}" key=${ek})`);
     }
-    return !isDead;
+    return !dead;
   });
 
   if (logSkips) {
-    const afterCounts = {
+    const after = {
       projects: payload.projects.length,
       chats: payload.chats.length,
       entries: payload.entries.length,
     };
     console.log(
-      `[SKIP_SUMMARY] projects ${originalCounts.projects}→${afterCounts.projects}, chats ${originalCounts.chats}→${afterCounts.chats}, entries ${originalCounts.entries}→${afterCounts.entries}`
+      `[SKIP_SUMMARY] projects ${before.projects}→${after.projects}, chats ${before.chats}→${after.chats}, entries ${before.entries}→${after.entries}`
     );
   }
 }
