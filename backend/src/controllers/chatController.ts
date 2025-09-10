@@ -3,7 +3,7 @@ import { Request, Response } from 'express';
 import { ProjectDoc, ProjectModel } from '../models/Project';
 import { ChatEntryModel } from '../models/ChatEntry';
 import type { ChatEntryDoc } from '../models/ChatEntry';
-import type { ChatSubdoc } from '../models/Project';
+import { TombstoneModel } from '../models';
 
 interface RenameOrMoveChatBody {
   newTitle?: string;
@@ -81,6 +81,12 @@ export const deleteChat = async (req: Request, res: Response) => {
     if (chatIndex === -1) {
       return res.status(404).json({ error: 'Chat not found' });
     }
+
+    await TombstoneModel.updateOne(
+      { kind: 'chat', projectId: projectId, chatId },
+      { $setOnInsert: { deletedAt: new Date(), source: 'app' } },
+      { upsert: true }
+    );
 
     project.chats.splice(chatIndex, 1);
     await project.save();
