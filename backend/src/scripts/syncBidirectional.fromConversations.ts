@@ -404,13 +404,6 @@ function flatten(convs: Conversation[]): ExportPayload {
    Deletion guards (tombstones + soft-deletes in DB)
    ──────────────────────────────────────────────────────────── */
 
-function chatKey(projectId: string, chatId: string) {
-  return `${projectId}::${chatId}`;
-}
-function entryKey(projectId: string, chatId: string, entryId: string) {
-  return `${projectId}::${chatId}::${entryId}`;
-}
-
 async function applyDeletionGuards(
   payload: ExportPayload,
   { logSkips }: { logSkips: boolean }
